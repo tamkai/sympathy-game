@@ -329,12 +329,16 @@
 
                 <div class="flex items-center justify-center gap-2 mb-4">
                     <span class="text-violet font-bold">投票状況:</span>
-                    <!-- Need backend support to show real-time voting count or progress -->
-                    <span class="text-pink-500 font-bold animate-pulse">Waiting for votes...</span>
+                    <span class="text-pink-500 font-bold"
+                          :class="wordWolfState && Object.keys(wordWolfState.votes || {}).length >= Object.keys(players).length ? '' : 'animate-pulse'"
+                          x-text="(wordWolfState ? Object.keys(wordWolfState.votes || {}).length : 0) + ' / ' + Object.keys(players).length + ' 人'"></span>
                 </div>
 
                 <button type="button" @click="finishVoting"
-                    class="mt-4 bg-white/50 hover:bg-white text-violet font-bold py-3 px-8 rounded-full transition-all border border-violet/20 flex items-center justify-center gap-2 mx-auto">
+                    class="mt-4 font-bold py-3 px-8 rounded-full transition-all flex items-center justify-center gap-2 mx-auto"
+                    :class="wordWolfState && Object.keys(wordWolfState.votes || {}).length >= Object.keys(players).length
+                        ? 'bg-pink-500 hover:bg-pink-600 text-white shadow-lg scale-105'
+                        : 'bg-white/50 hover:bg-white text-violet border border-violet/20'">
                     <span class="material-icons-round">poll</span> 投票結果を見る
                 </button>
             </div>
