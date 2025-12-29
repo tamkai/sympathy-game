@@ -35,6 +35,7 @@ function playerApp() {
         myRole: null, // 'VILLAGER' or 'WOLF'
         myTopic: null,
         voteTarget: '',
+        topicRevealed: false, // For tap-to-reveal on touch devices
 
         init() {
             // Robust roomId extraction

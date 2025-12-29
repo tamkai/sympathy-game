@@ -55,11 +55,12 @@
                     <h2 class="text-2xl font-bold mt-2 text-violet" x-text="myRole === 'WOLF' ? 'ウルフ' : '市民'"></h2>
                 </div>
 
-                <div class="bg-white/40 p-4 rounded-xl border border-white/50">
+                <div class="bg-white/40 p-4 rounded-xl border border-white/50" @click="topicRevealed = !topicRevealed">
                     <div class="text-sm opacity-70 mb-1 text-violet font-bold">今回のお題</div>
-                    <div class="text-3xl font-bold text-pink-600 drop-shadow-sm filter blur-sm hover:blur-none transition-all duration-300 cursor-pointer select-none"
+                    <div class="text-3xl font-bold text-pink-600 drop-shadow-sm transition-all duration-300 cursor-pointer select-none"
+                        :class="topicRevealed ? '' : 'blur-sm'"
                         x-text="myTopic"></div>
-                    <p class="text-xs mt-2 opacity-50 text-violet">タップしてこっそり確認してね</p>
+                    <p class="text-xs mt-2 opacity-50 text-violet" x-text="topicRevealed ? 'タップして隠す' : 'タップしてこっそり確認してね'"></p>
                 </div>
 
                 <div class="bg-violet p-4 rounded-xl text-white text-sm opacity-90 leading-relaxed shadow-lg">
@@ -135,10 +136,12 @@
             <div class="glass p-8 rounded-2xl w-full text-center flex flex-col gap-6 animate-pulse-slow">
                 <h2 class="text-2xl font-bold text-violet">議論中...</h2>
                 <div class="text-6xl">🗣️</div>
-                <div class="bg-white/40 p-4 rounded-xl">
+                <div class="bg-white/40 p-4 rounded-xl" @click="topicRevealed = !topicRevealed">
                     <div class="text-xs opacity-70 mb-1 text-violet font-bold">あなたのお題</div>
-                    <div class="text-2xl font-bold text-pink-600 filter blur-sm hover:blur-none cursor-pointer transition-all"
+                    <div class="text-2xl font-bold text-pink-600 cursor-pointer transition-all"
+                        :class="topicRevealed ? '' : 'blur-sm'"
                         x-text="myTopic"></div>
+                    <p class="text-xs mt-1 opacity-50 text-violet" x-text="topicRevealed ? 'タップして隠す' : 'タップで確認'"></p>
                 </div>
                 <p class="text-sm opacity-80 text-violet">みんなと話し合ってウルフを見つけよう（または騙そう）！</p>
             </div>
