@@ -1,0 +1,108 @@
+/* Design System: Pop & Glassy */
+:root {
+    /* Colors */
+    --color-pink: #FF6B95;
+    --color-violet: #2D1B4E;
+
+    /* Gradient Stops */
+    --grad-start: #F8CEDA;
+    --grad-mid: #D4D3FF;
+    --grad-end: #EBEBEB;
+
+    /* Fonts */
+    --font-en: 'Outfit', sans-serif;
+    --font-jp: 'Noto Sans JP', sans-serif;
+}
+
+body {
+    background: linear-gradient(-45deg, var(--grad-start), var(--grad-mid), var(--grad-end), #e0c3fc);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    min-height: 100vh;
+    font-family: var(--font-en), var(--font-jp);
+    color: var(--color-violet);
+    /* Reset default text color from white to Deep Violet for legibility on light background */
+}
+
+@keyframes gradientBG {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Glassmorphism Utilities (Updated) */
+.glass {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+}
+
+.glass-dark {
+    /* Used for container contrast - Dark for White text */
+    background: rgba(45, 27, 78, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Typography Overrides */
+h1,
+h2,
+h3,
+.font-bold {
+    font-family: var(--font-en), var(--font-jp);
+    font-weight: 700;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--color-pink);
+    color: white;
+    border-radius: 999px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 107, 149, 0.4);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 107, 149, 0.6);
+}
+
+/* Drag and Drop Helpers */
+.draggable-source {
+    cursor: grab;
+}
+
+.draggable-source:active {
+    cursor: grabbing;
+}
+
+.drop-zone {
+    transition: all 0.2s ease;
+}
+
+.drop-zone.drag-over {
+    background: rgba(255, 255, 255, 0.6);
+    transform: scale(1.02);
+    border-color: var(--color-pink);
+}
+
+/* Utils */
+.text-pink {
+    color: var(--color-pink);
+}
+
+.text-violet {
+    color: var(--color-violet);
+}

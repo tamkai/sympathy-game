@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party Box - Host</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Outfit:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <script src="/static/js/host.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body x-data="hostApp('{{ network_ip }}')" x-init="init()" @click.once="initAudio" class="overflow-auto">
+
+    <!-- Header -->
+    <div class="fixed top-0 w-full p-3 flex justify-between items-center z-50 pointer-events-none">
+        <h1 class="text-xl font-bold glass px-3 py-1 rounded-full pointer-events-auto text-pink">Party Box</h1>
+        <div class="flex gap-2">
+            <div class="glass px-3 py-1 rounded-full text-sm font-mono pointer-events-auto text-violet">
+                Room: <span x-text="roomId"></span>
+            </div>
+            <button @click="showResetModal = true"
+                class="glass w-8 h-8 rounded-full flex items-center justify-center pointer-events-auto text-violet hover:bg-red-500 hover:text-white transition-colors"
+                title="ゲームをリセット">
+                <span class="material-icons-round text-sm">close</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container mx-auto min-h-screen flex flex-col justify-center items-center p-4 pt-16 pb-8">
+
+        <!-- Phase: LOBBY -->
+        <template x-if="phase === 'LOBBY'">
+            <div class="w-full h-full flex flex-col items-center justify-between py-10 animate-fade-in relative z-10">
+                <!-- Header / Logo -->
+                <div class="text-center">
+                    <h1 class="text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500 drop-shadow-sm mb-2"
+                        style="font-family: 'Outfit', sans-serif;">Party Box</h1>
+                    <p class="text-xl text-violet font-medium tracking-widest">DIALOGUE GAME PLATFORM</p>
+                </div>
+
+                <!-- Main Content: Mode Select & QR -->
+                <div class="flex flex-col md:flex-row gap-8 w-full max-w-6xl px-8 items-stretch flex-1 my-8">
+
+                    <!-- Left: Game Settings -->
+                    <div class="flex-1 glass p-8 rounded-3xl flex flex-col gap-6">
+                        <h2 class="text-2xl font-bold text-violet mb-2 border-b border-white/50 pb-2">Game Select</h2>
+
+                        <!-- Mode Selector -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <button @click="selectedMode = 'SYMPATHY'"
+                                :class="selectedMode === 'SYMPATHY' ? 'bg-gradient-to-br from-pink-400 to-pink-600 text-white shadow-lg scale-105' : 'bg-white/50 text-violet hover:bg-white/80'"
+                                class="p-6 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
+                                <div class="text-4xl group-hover:scale-110 transition-transform">💖</div>
+                                <div class="font-bold text-lg">Sympathy</div>
+                                <div class="text-xs opacity-80">共感パーティゲーム</div>
+                            </button>
+
+                            <button @click="selectedMode = 'WORD_WOLF'"
+                                :class="selectedMode === 'WORD_WOLF' ? 'bg-gradient-to-br from-indigo-400 to-purple-600 text-white shadow-lg scale-105' : 'bg-white/50 text-violet hover:bg-white/80'"
+                                class="p-6 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
+                                <div class="text-4xl group-hover:scale-110 transition-transform">🐺</div>
+                                <div class="font-bold text-lg">Word Wolf</div>
+                                <div class="text-xs opacity-80">正体隠匿系ゲーム</div>
+                            </button>
+                        </div>
+
+                        <!-- Config Panel -->
+                        <div class="bg-white/30 rounded-xl p-4 flex-1">
+                            <h3 class="font-bold text-violet mb-4 flex items-center gap-2">
+                                <span class="material-icons-round text-sm">settings</span> 設定
+                            </h3>
+
+                            <!-- Sympathy Config -->
+                            <div x-show="selectedMode === 'SYMPATHY'" class="flex flex-col gap-4">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-violet font-medium">スピードスター</span>
+                                    <button @click="toggleConfig('speed_star')"
+                                        :class="config.speedStar ? 'bg-pink-500' : 'bg-gray-300'"
+                                        class="w-12 h-6 rounded-full relative transition-colors duration-300">
+                                        <div :class="config.speedStar ? 'translate-x-6' : 'translate-x-1'"
+                                            class="w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform duration-300 shadow-sm">
+                                        </div>
+                                    </button>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-violet font-medium">アンサーシャッフル</span>
+                                    <button @click="toggleConfig('shuffle')"
+                                        :class="config.shuffle ? 'bg-pink-500' : 'bg-gray-300'"
+                                        class="w-12 h-6 rounded-full relative transition-colors duration-300">
+                                        <div :class="config.shuffle ? 'translate-x-6' : 'translate-x-1'"
+                                            class="w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform duration-300 shadow-sm">
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Word Wolf Config -->
+                            <div x-show="selectedMode === 'WORD_WOLF'" class="flex flex-col gap-4">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-violet font-medium">議論時間</span>
+                                    <div class="flex items-center gap-3 bg-white/50 rounded-lg p-1">
+                                        <button @click="updateDiscussionTime(-60)"
+                                            class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-violet hover:bg-pink-100 transition">-</button>
+                                        <span class="font-mono font-bold text-lg w-12 text-center"
+                                            x-text="(config.discussionTime / 60) + '分'"></span>
+                                        <button @click="updateDiscussionTime(60)"
+                                            class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-violet hover:bg-pink-100 transition">+</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" @click="startGame"
+                            class="w-full py-4 text-xl font-bold bg-violet-600 text-white rounded-xl shadow-lg hover:bg-violet-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                            ゲームスタート！
+                        </button>
+                    </div>
+
+                    <!-- Right: Players & QR -->
+                    <div class="flex-1 flex flex-col gap-6">
+                        <!-- QR Code -->
+                        <div class="glass p-6 rounded-3xl flex flex-col md:flex-row items-center gap-6">
+                            <div class="bg-white p-2 rounded-xl shadow-inner shrink-0" id="qrcode"></div>
+                            <div class="text-center md:text-left">
+                                <p class="text-violet text-sm font-bold mb-1">参加URL:</p>
+                                <p class="text-xl font-mono bg-white/50 px-4 py-2 rounded-lg text-violet select-all break-all"
+                                    x-text="joinUrl"></p>
+                                <p class="text-xs text-violet/60 mt-2">スマホでQRコードを読み取って参加してね！</p>
+                            </div>
+                        </div>
+
+                        <!-- Player List -->
+                        <div class="glass p-6 rounded-3xl flex-1 flex flex-col">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-violet flex items-center gap-2">
+                                    <span class="material-icons-round">groups</span>
+                                    参加者
+                                    <span class="bg-white/50 px-2 py-0.5 rounded-full text-sm"
+                                        x-text="Object.keys(players).length + '人'"></span>
+                                </h2>
+                            </div>
+
+                            <div
+                                class="grid grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
+                                <template x-for="player in players" :key="player.player_id">
+                                    <div
+                                        class="bg-white/60 p-3 rounded-xl flex flex-col items-center gap-2 animate-pop-in shadow-sm">
+                                        <div
+                                            class="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-300 to-violet-300 flex items-center justify-center text-white font-bold text-lg shadow-inner">
+                                            <span x-text="player.name[0]"></span>
+                                        </div>
+                                        <span x-text="player.name"
+                                            class="font-bold text-xs text-violet truncate w-full text-center"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: INSTRUCTION / DESCRIPTION -->
+        <template x-if="phase === 'INSTRUCTION' || phase === 'DESCRIPTION'">
+            <div class="flex flex-col items-center gap-4 w-full max-w-4xl animate-fade-in text-center">
+                <h1 class="text-3xl font-bold text-violet drop-shadow-sm animate-scale-in">ルール説明</h1>
+
+                <!-- Phase: DESCRIPTION / INSTRUCTION (Word Wolf) -->
+                <template x-if="(phase === 'DESCRIPTION' || phase === 'INSTRUCTION') && mode === 'WORD_WOLF'">
+                    <div
+                        class="glass p-12 rounded-3xl w-full max-w-4xl text-center flex flex-col gap-8 animate-fade-in relative overflow-hidden">
+                        <div class="absolute -top-10 -left-10 w-40 h-40 bg-pink-300 rounded-full blur-3xl opacity-30">
+                        </div>
+                        <div
+                            class="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-300 rounded-full blur-3xl opacity-30">
+                        </div>
+
+                        <h2
+                            class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
+                            役割・お題を確認してください
+                        </h2>
+
+                        <div class="flex items-center justify-center gap-12 my-8">
+                            <div class="flex flex-col items-center gap-4 animate-bounce-slow">
+                                <div class="text-8xl">📱</div>
+                                <p class="text-xl font-bold text-violet">スマホをチェック！</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white/40 p-6 rounded-2xl text-left">
+                            <h3 class="text-xl font-bold text-violet mb-2 flex items-center gap-2">
+                                <span class="material-icons-round text-pink-500">info</span> ルール
+                            </h3>
+                            <ul class="list-disc list-inside text-violet space-y-2 opacity-80 text-lg">
+                                <li><span class="font-bold">市民</span>は共通のお題について話します。</li>
+                                <li><span class="font-bold">ウルフ（1人）</span>は違うお題について話します。</li>
+                                <li>議論時間は<span class="font-bold text-pink-600"
+                                        x-text="(config.discussionTime / 60) + '分'"></span>です。</li>
+                                <li>市民はウルフを見つけ出し、ウルフは話を合わせてください！</li>
+                            </ul>
+                        </div>
+
+                        <button type="button" @click="startWordWolfDiscussion"
+                            class="w-full py-4 text-2xl font-bold bg-gradient-to-r from-pink-500 to-violet-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
+                            議論スタート！
+                        </button>
+                    </div>
+                </template>
+
+                <!-- Phase: INSTRUCTION (Sympathy) -->
+                <!-- Phase: INSTRUCTION (Sympathy) -->
+                <template x-if="phase === 'INSTRUCTION' && mode === 'SYMPATHY'">
+                    <div
+                        class="glass p-8 rounded-2xl w-full max-w-4xl text-center animate-fade-in relative overflow-hidden">
+                        <!-- BG Decoration -->
+                        <div
+                            class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">
+                        </div>
+
+                        <!-- Victory Condition -->
+                        <div
+                            class="bg-gradient-to-r from-yellow-100 to-orange-100 p-4 rounded-xl mb-6 border border-yellow-300 shadow-inner mt-2">
+                            <h3 class="text-sm font-bold text-orange-600 flex items-center justify-center gap-2 mb-1">
+                                <span class="material-icons-round text-base">emoji_events</span> 勝利条件
+                            </h3>
+                            <p class="text-orange-900 font-bold text-lg">
+                                爆弾を持たずに<br class="md:hidden" />8ポイント先取！
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mb-6">
+                            <!-- Card 1 -->
+                            <div
+                                class="bg-white/40 p-4 rounded-xl relative overflow-hidden group hover:bg-white/60 transition-colors">
+                                <div class="text-3xl mb-2">💭</div>
+                                <h3 class="text-base font-bold text-violet mb-1">① お題に回答</h3>
+                                <p class="text-xs text-violet opacity-80 leading-relaxed">
+                                    みんなと<span class="font-bold text-pink-500">同じ回答</span>を目指して入力しよう！
+                                </p>
+                            </div>
+                            <!-- Card 2 -->
+                            <div
+                                class="bg-white/40 p-4 rounded-xl relative overflow-hidden group hover:bg-white/60 transition-colors">
+                                <div class="text-3xl mb-2">✨</div>
+                                <h3 class="text-base font-bold text-violet mb-1">② シンパシー判定</h3>
+                                <p class="text-xs text-violet opacity-80 leading-relaxed">
+                                    <span class="font-bold text-pink-500">同じ回答のペア</span>ができればポイントゲット！
+                                </p>
+                            </div>
+                            <!-- Card 3 -->
+                            <div
+                                class="bg-white/40 p-4 rounded-xl relative overflow-hidden group hover:bg-white/60 transition-colors">
+                                <div class="text-3xl mb-2">💣</div>
+                                <h3 class="text-base font-bold text-violet mb-1">③ お邪魔爆弾</h3>
+                                <p class="text-xs text-violet opacity-80 leading-relaxed">
+                                    <span class="font-bold text-pink-500">一番少ない回答</span>の人に<span
+                                        class="font-bold text-red-500">爆弾</span>が移ります。
+                                </p>
+                            </div>
+                        </div>
+
+                        <button type="button" @click="startRound"
+                            class="w-full py-4 text-2xl font-bold bg-gradient-to-r from-pink-500 to-violet-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
+                            ラウンドスタート！
+                        </button>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Phase: ANSWERING (Word Wolf Discussion) -->
+        <template x-if="phase === 'ANSWERING' && mode === 'WORD_WOLF'">
+            <div
+                class="glass p-12 rounded-3xl w-full max-w-5xl text-center flex flex-col gap-6 animate-fade-in relative h-full justify-center">
+
+                <!-- Timer -->
+                <div class="flex flex-col items-center justify-center gap-2 mb-8"
+                    x-data="{ timeLeft: config.discussionTime, timer: null }"
+                    x-init="timer = setInterval(() => { if(phase !== 'ANSWERING') { clearInterval(timer); return; } if(timeLeft > 0) { timeLeft--; if(timeLeft <= 10 && timeLeft > 0) sounds.play('tick'); if(timeLeft === 0) sounds.play('timeup'); } else clearInterval(timer) }, 1000); $cleanup(() => clearInterval(timer))"
+                    x-effect="if(timeLeft <= 0) finishAnswering()">
+
+                    <div class="text-sm font-bold text-violet tracking-widest uppercase">Discussion Time</div>
+                    <div class="font-mono text-9xl font-bold text-violet tabular-nums"
+                        :class="{'text-red-500 animate-pulse': timeLeft < 30}"
+                        x-text="Math.floor(timeLeft / 60) + ':' + (timeLeft % 60).toString().padStart(2, '0')">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-4 md:grid-cols-6 gap-4 opacity-70">
+                    <template x-for="player in Object.values(players)" :key="player.player_id">
+                        <div class="flex flex-col items-center gap-2 animate-pulse-slow">
+                            <div
+                                class="w-16 h-16 rounded-full bg-white flex items-center justify-center text-3xl shadow-sm">
+                                <span x-text="player.name[0]"></span>
+                            </div>
+                            <span class="text-xs font-bold text-violet" x-text="player.name"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <button type="button" @click="finishAnswering"
+                    class="mt-8 bg-white/50 hover:bg-white text-violet font-bold py-3 px-8 rounded-full transition-all border border-violet/20 flex items-center justify-center gap-2 mx-auto">
+                    <span class="material-icons-round">stop</span> 議論を終了する
+                </button>
+            </div>
+        </template>
+
+        <!-- Phase: JUDGING (Word Wolf Voting) -->
+        <template x-if="phase === 'JUDGING' && mode === 'WORD_WOLF'">
+            <div class="glass p-12 rounded-3xl w-full max-w-4xl text-center flex flex-col gap-8 animate-fade-in">
+                <h2 class="text-4xl font-bold text-violet mb-4">投票タイム</h2>
+                <p class="text-xl text-violet opacity-80">ウルフだと思う人に投票してください</p>
+
+                <div class="flex-1 flex items-center justify-center my-8">
+                    <div class="text-9xl animate-spin-slow opacity-20">🗳️</div>
+                </div>
+
+                <div class="flex items-center justify-center gap-2 mb-4">
+                    <span class="text-violet font-bold">投票状況:</span>
+                    <!-- Need backend support to show real-time voting count or progress -->
+                    <span class="text-pink-500 font-bold animate-pulse">Waiting for votes...</span>
+                </div>
+
+                <button type="button" @click="finishVoting"
+                    class="mt-4 bg-white/50 hover:bg-white text-violet font-bold py-3 px-8 rounded-full transition-all border border-violet/20 flex items-center justify-center gap-2 mx-auto">
+                    <span class="material-icons-round">poll</span> 投票結果を見る
+                </button>
+            </div>
+        </template>
+
+        <!-- Phase: WORD_WOLF_RESULT needs separate handling or merged into RESULT? 
+             Let's use a new template condition for Word Wolf Result if possible, or same Phase.RESULT -->
+        <template x-if="phase === 'RESULT' && mode === 'WORD_WOLF'">
+            <div
+                class="glass p-10 rounded-3xl w-full max-w-5xl text-center flex flex-col gap-6 animate-fade-in relative z-10 overflow-hidden">
+                <h2 class="text-4xl font-bold text-pink-600 mb-8 border-b-2 border-pink-200 pb-4 inline-block mx-auto">
+                    GAME RESULT</h2>
+
+                <!-- Winner Display -->
+                <div class="flex flex-col items-center mb-12">
+                    <div class="text-sm font-bold text-violet tracking-widest mb-2">WINNER</div>
+                    <!-- Logic needed to determine winner side based on wolf/votes -->
+                    <div class="text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-orange-500 drop-shadow-sm mb-4"
+                        x-text="resultStats.wolfWon ? 'WOLF TEAM' : 'CITIZENS'"></div>
+                    <p class="text-lg text-violet opacity-80" x-text="resultStats.winningReason"></p>
+                </div>
+
+                <!-- Reveal Wolf -->
+                <div class="glass-dark p-6 rounded-2xl flex flex-col items-center gap-4 max-w-xl mx-auto w-full">
+                    <div class="text-sm font-bold text-white tracking-widest">REAL WOLF</div>
+                    <div class="flex items-center gap-6">
+                        <div class="text-6xl">🐺</div>
+                        <div class="text-4xl font-bold text-white" x-text="resultStats.wolfName"></div>
+                    </div>
+                </div>
+
+                <!-- Reveal Topic -->
+                <div class="grid grid-cols-2 gap-4 mt-4 text-violet">
+                    <div class="bg-white/40 p-4 rounded-xl">
+                        <div class="text-sm font-bold opacity-70">市民のお題</div>
+                        <div class="text-2xl font-bold" x-text="resultStats.majorityTopic"></div>
+                    </div>
+                    <div class="bg-white/40 p-4 rounded-xl border-2 border-pink-400">
+                        <div class="text-sm font-bold opacity-70 text-pink-600">ウルフのお題</div>
+                        <div class="text-2xl font-bold text-pink-600" x-text="resultStats.minorityTopic"></div>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex items-center justify-center gap-4 w-full max-w-lg mx-auto">
+                    <button @click="resetGame"
+                        class="flex-1 bg-white/50 hover:bg-white text-violet rounded-xl py-4 text-xl font-bold shadow-md transition-all active:scale-95 border border-violet/20">
+                        ゲーム終了
+                    </button>
+                    <button @click="nextRound"
+                        class="flex-[2] btn-primary py-4 text-xl font-bold shadow-xl transition-all active:scale-95">
+                        次のゲームへ
+                    </button>
+                </div>
+            </div>
+        </template>
+
+
+
+
+        <!-- Phase: ANSEWRING (Sympathy) -->
+        <template x-if="phase === 'ANSWERING' && mode === 'SYMPATHY'">
+            <div
+                class="glass p-12 rounded-3xl w-full max-w-5xl text-center flex flex-col gap-6 animate-fade-in relative z-10 overflow-hidden">
+                <div
+                    class="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-pink-400/10 to-violet-400/10 -z-10">
+                </div>
+
+                <div
+                    class="inline-block mx-auto bg-white/50 px-6 py-2 rounded-full text-violet font-bold text-sm mb-4 tracking-widest shadow-sm border border-white/50">
+                    QUESTION
+                </div>
+
+                <h2 class="text-5xl md:text-6xl font-bold text-violet leading-tight drop-shadow-sm mb-8"
+                    x-text="currentQuestion"></h2>
+
+                <div class="flex flex-col items-center gap-4">
+                    <p class="text-xl font-bold text-pink-500 animate-pulse">回答待機中...</p>
+                    <div class="flex gap-2">
+                        <!-- Progress indicators -->
+                        <template x-for="player in Object.values(players)" :key="player.player_id">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm border-2"
+                                :class="player.has_answered ? 'bg-pink-400 border-pink-500 text-white scale-110' : 'bg-white/50 border-white text-violet/50'">
+                                <span class="text-xl font-bold" x-show="player.has_answered">✓</span>
+                                <span class="text-sm font-bold" x-show="!player.has_answered"
+                                    x-text="player.name[0]"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-white/30">
+                    <button type="button" @click="finishAnswering"
+                        class="btn-primary py-3 px-12 text-lg font-bold opacity-90 hover:opacity-100">
+                        回答を締め切る
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: JUDGING (Sympathy Core Logic) -->
+        <template x-if="phase === 'JUDGING' && mode === 'SYMPATHY'">
+            <div class="w-full h-full flex flex-col gap-4 animate-fade-in">
+
+                <!-- Shuffle Alert Banner -->
+                <template x-if="shuffleTriggered">
+                    <div
+                        class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-center py-4 font-bold rounded-xl shadow-lg animate-pulse border-4 border-yellow-400">
+                        <div class="text-3xl mb-1">🔀⚡🔀</div>
+                        <div class="text-xl">アンサーシャッフル発動！</div>
+                        <div class="text-sm opacity-90">全員の回答がシャッフルされました！</div>
+                    </div>
+                </template>
+
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold mb-2 text-violet">シンパシー判定</h2>
+                    <p class="text-sm opacity-80 text-violet">同じ回答をドラッグして重ねてね！</p>
+                </div>
+
+                <!-- Grouping Board -->
+                <div class="flex-1 glass rounded-2xl p-4 overflow-y-auto relative" id="grouping-board"
+                    @dragover.prevent="onDragOver" @drop.prevent="onDropUngroup($event)"
+                    @touchend="onTouchEndUngroup($event)">
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+                        <template x-for="group in groups" :key="group.id">
+                            <div class="glass-dark p-4 rounded-xl min-h-[120px] flex flex-col gap-2 transition-colors border-2 border-transparent hover:border-white/60 drop-zone"
+                                :data-group-id="group.id" @dragover.prevent.stop="onDragOver"
+                                @drop.prevent.stop="onDrop">
+
+                                <template x-for="answer in group.answers" :key="answer.answer_id">
+                                    <div class="bg-white text-violet p-3 rounded-lg shadow-md cursor-grab active:cursor-grabbing draggable-source border border-white/50 select-none"
+                                        draggable="true" @dragstart="onDragStart($event, answer.answer_id)"
+                                        @touchstart="onTouchStart($event, answer.answer_id)"
+                                        @touchmove.prevent="onTouchMove($event)" @touchend="onTouchEnd($event)">
+                                        <span x-text="answer.raw_text" class="font-bold"></span>
+                                        <div class="text-xs text-violet/60 mt-1" x-text="answer.player_name">
+                                        </div>
+                                    </div>
+                                </template>
+
+                            </div>
+                        </template>
+                    </div>
+                    <p class="text-center text-xs text-violet/60 mt-4">💡 グループ外にドロップすると分離できます</p>
+                </div>
+
+                <div class="flex justify-center p-4">
+                    <button @click="finalizeJudging" class="btn-primary py-3 px-10 font-bold text-lg">
+                        結果発表へ
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: RESULT (Sympathy) -->
+        <template x-if="phase === 'RESULT' && mode === 'SYMPATHY'">
+            <div class="flex flex-col items-center gap-6 w-full max-w-4xl animate-fade-in">
+                <h1 class="text-5xl font-bold text-pink-500 drop-shadow-sm mb-4">RESULT</h1>
+
+                <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Ranking -->
+                    <div class="glass p-6 rounded-2xl">
+                        <h2 class="text-2xl mb-4 font-bold border-b border-white/30 pb-2 text-violet">ランキング</h2>
+                        <ul class="space-y-2">
+                            <template x-for="(player, index) in sortedPlayers" :key="player.player_id">
+                                <li class="flex justify-between items-center p-3 rounded bg-white/40 shadow-sm">
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-mono text-xl w-6 text-pink font-bold"
+                                            x-text="index + 1"></span>
+                                        <span class="font-bold flex items-center gap-2 text-violet">
+                                            <span x-text="player.name"></span>
+                                            <template x-if="player.player_id === bombOwnerId">
+                                                <span class="text-2xl" title="Bomb Owner">💣</span>
+                                            </template>
+                                        </span>
+                                    </div>
+                                    <span class="font-mono text-xl font-bold text-violet"
+                                        x-text="player.score + ' pt'"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <!-- Majority/Minority Info -->
+                    <div class="glass p-6 rounded-2xl flex flex-col justify-center gap-4">
+                        <div>
+                            <h3 class="text-xl mb-2 font-bold text-pink">ナイス・シンパシー！ (+1pt)</h3>
+                            <div class="p-4 bg-white/40 rounded-xl text-lg font-bold text-violet shadow-sm">
+                                <span x-text="resultStats.majorityAnswer || '特になし'"></span>
+                                <span class="text-sm opacity-70 ml-2"
+                                    x-text="'(' + resultStats.majorityCount + '人)'"></span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-xl mb-2 font-bold text-violet">お邪魔爆弾 (少数派)</h3>
+                            <div
+                                class="p-4 bg-pink-100/50 rounded-xl text-lg font-bold text-violet border border-pink-200">
+                                💣 <span x-text="resultStats.minorityPlayerName || 'なし'"></span>
+                            </div>
+                        </div>
+
+                        <!-- Speed Star -->
+                        <template x-if="config.speedStar && resultStats.speedStarName">
+                            <div>
+                                <h3 class="text-xl mb-2 font-bold text-yellow-600">🚀 スピードスター (+1pt)</h3>
+                                <div
+                                    class="p-4 bg-yellow-100/50 rounded-xl text-lg font-bold text-violet border border-yellow-300">
+                                    ⚡ <span x-text="resultStats.speedStarName"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Winner Celebration -->
+                <template x-if="winnerId">
+                    <div
+                        class="w-full glass p-8 rounded-2xl text-center animate-scale-in bg-gradient-to-r from-yellow-300/50 to-pink-300/50 border-4 border-yellow-400 shadow-lg mt-4">
+                        <div class="text-6xl mb-4">🎉🏆🎉</div>
+                        <h2 class="text-4xl font-bold text-violet mb-2">GAME OVER!</h2>
+                        <p class="text-2xl font-bold text-pink">
+                            優勝: <span x-text="players[winnerId]?.name || 'Unknown'"></span>
+                        </p>
+                        <p class="text-lg text-violet mt-2">8ポイント達成、おめでとう！</p>
+                    </div>
+                </template>
+
+                <div class="flex gap-4 mt-8">
+                    <button type="button" @click="showResetModal = true"
+                        class="glass px-6 py-3 rounded-full font-bold text-pink hover:bg-white/50 transition border border-pink-300">
+                        ゲーム終了 (リセット)
+                    </button>
+                    <button x-show="!winnerId" type="button" @click="nextRound"
+                        class="glass px-10 py-3 rounded-full font-bold text-violet hover:bg-white/50 transition bg-white/30">
+                        次のラウンドへ
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- Reset Confirmation Modal -->
+        <template x-if="showResetModal">
+            <div
+                class="fixed inset-0 bg-black/60 z-[100] flex justify-center items-center backdrop-blur-sm animate-fade-in">
+                <div class="glass-dark p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl border border-white/20">
+                    <h3 class="text-2xl font-bold mb-4 text-pink-400">ゲームを終了しますか？</h3>
+                    <p class="mb-8 text-white font-bold drop-shadow-md">現在のスコアと参加者はすべてリセットされます。<br>この操作は取り消せません。
+                    </p>
+                    <div class="flex justify-center gap-4">
+                        <button @click="showResetModal = false"
+                            class="glass px-6 py-2 rounded-full text-white font-bold hover:bg-white/20 transition">
+                            キャンセル
+                        </button>
+                        <button @click="resetGame"
+                            class="btn-primary px-8 py-2 font-bold shadow-lg hover:scale-105 transition">
+                            終了する
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+    </div>
+
+    </div>
+</body>
+
+</html>

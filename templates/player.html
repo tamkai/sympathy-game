@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Party Box - Play</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Outfit:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <script src="/static/js/player.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+
+<body x-data="playerApp()" x-init="init()" class="min-h-[100dvh] flex flex-col">
+
+    <!-- Header -->
+    <div class="glass p-3 text-center text-sm font-bold z-50 text-violet">
+        Party Box <span x-show="hasJoined" x-text="'@ ' + playerName" class="text-pink ml-2"></span>
+    </div>
+
+    <!-- Main Container -->
+    <div class="flex-1 flex flex-col justify-center items-center p-4 w-full max-w-md mx-auto relative overflow-hidden">
+
+        <!-- Phase: LOGIN (Before Joining) -->
+        <template x-if="!hasJoined">
+            <div class="glass p-8 rounded-2xl w-full flex flex-col gap-6 animate-fade-in">
+                <h1 class="text-2xl font-bold text-center text-violet">ゲームに参加</h1>
+                <input type="text" x-model="nameInput" placeholder="ニックネーム"
+                    class="w-full bg-white/50 border border-white rounded-lg p-4 text-violet placeholder-violet/50 focus:outline-none focus:ring-2 focus:ring-pink-300 text-lg shadow-inner">
+                <button @click="joinGame" :disabled="!nameInput"
+                    class="btn-primary py-4 font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                    参加する
+                </button>
+            </div>
+        </template>
+
+        <!-- Phase: DESCRIPTION / INSTRUCTION (Role & Topic) -->
+        <template x-if="hasJoined && (phase === 'DESCRIPTION' || phase === 'INSTRUCTION') && mode === 'WORD_WOLF'">
+            <div class="glass p-6 rounded-2xl w-full text-center animate-fade-in flex flex-col gap-6">
+                <div class="flex flex-col items-center">
+                    <span class="text-xs font-bold text-violet bg-white/50 px-3 py-1 rounded-full mb-2">YOUR ROLE</span>
+                    <template x-if="myRole === 'WOLF'">
+                        <div class="text-6xl animate-bounce">🐺</div>
+                    </template>
+                    <template x-if="myRole === 'VILLAGER'">
+                        <div class="text-6xl animate-bounce">🧑‍🌾</div>
+                    </template>
+                    <h2 class="text-2xl font-bold mt-2 text-violet" x-text="myRole === 'WOLF' ? 'ウルフ' : '市民'"></h2>
+                </div>
+
+                <div class="bg-white/40 p-4 rounded-xl border border-white/50">
+                    <div class="text-sm opacity-70 mb-1 text-violet font-bold">今回のお題</div>
+                    <div class="text-3xl font-bold text-pink-600 drop-shadow-sm filter blur-sm hover:blur-none transition-all duration-300 cursor-pointer select-none"
+                        x-text="myTopic"></div>
+                    <p class="text-xs mt-2 opacity-50 text-violet">タップしてこっそり確認してね</p>
+                </div>
+
+                <div class="bg-violet p-4 rounded-xl text-white text-sm opacity-90 leading-relaxed shadow-lg">
+                    <p x-show="myRole === 'VILLAGER'">
+                        周りの人と会話して、<br>
+                        <span class="font-bold text-yellow-300">一人だけ違うお題</span>について<br>
+                        話している人（ウルフ）を探し出そう！
+                    </p>
+                    <p x-show="myRole === 'WOLF'">
+                        周りの会話に合わせて<br>
+                        <span class="font-bold text-yellow-300">話を合わせよう！</span><br>
+                        ウルフだとバレないように注意して！
+                    </p>
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: JUDGING (Voting for Word Wolf) -->
+        <template x-if="hasJoined && phase === 'JUDGING' && mode === 'WORD_WOLF'">
+            <div class="w-full flex flex-col gap-4 animate-fade-in">
+                <div class="text-center mb-4">
+                    <h2 class="text-2xl font-bold text-violet">投票タイム！</h2>
+                    <p class="text-sm text-violet opacity-80">ウルフだと思う人を選んで投票してね</p>
+                </div>
+
+                <div x-show="!hasAnswered"
+                    class="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto w-full px-1 py-2">
+                    <template x-for="player in Object.values(players)" :key="player.player_id">
+                        <button @click="voteTarget = player.player_id" x-show="player.player_id !== myPlayerId"
+                            :class="voteTarget === player.player_id ? 'bg-pink-500 text-white transform scale-105 shadow-lg border-2 border-white' : 'glass hover:bg-white/40 text-violet'"
+                            class="p-4 rounded-xl font-bold transition-all duration-200 flex flex-col items-center gap-2">
+                            <span class="text-xl" x-text="player.name[0]"></span>
+                            <span class="text-sm truncate w-full" x-text="player.name"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <div x-show="!hasAnswered"
+                    class="sticky bottom-0 pb-4 pt-2 bg-gradient-to-t from-pink-100/50 to-transparent">
+                    <button @click="submitVote" :disabled="!voteTarget"
+                        class="w-full btn-primary py-4 text-xl font-bold active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed shadow-xl">
+                        投票する
+                    </button>
+                </div>
+
+                <div x-show="hasAnswered" class="text-center animate-pulse text-violet glass p-8 rounded-2xl">
+                    <div class="text-6xl mb-4">🗳️</div>
+                    <h3 class="text-xl font-bold">投票完了！</h3>
+                    <p class="text-sm opacity-80 mt-2">結果発表を待ってね...</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: WORD_WOLF_RESULT needs to be handled? reusing RESULT Phase for now -->
+
+        <!-- Existing Sympathy Waiting -->
+        <template
+            x-if="hasJoined && (phase === 'LOBBY' || (phase === 'ANSWERING' && hasAnswered && mode === 'SYMPATHY') || (phase === 'JUDGING' && mode === 'SYMPATHY') || (phase === 'INSTRUCTION' && mode === 'SYMPATHY'))">
+            <div class="text-center animate-pulse text-violet">
+                <div class="text-6xl mb-4">💣</div>
+                <h2 class="text-xl font-bold mb-2">Wait a moment!</h2>
+                <div x-show="phase === 'LOBBY'">
+                    <p class="text-sm opacity-80">ホストが開始するのを待ってね</p>
+                </div>
+                <div x-show="phase === 'JUDGING'">
+                    <p class="text-sm opacity-80">集計中... ドキドキ...</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- Word Wolf Waiting (During Discussion) -->
+        <template x-if="hasJoined && (phase === 'ANSWERING' && mode === 'WORD_WOLF')">
+            <div class="glass p-8 rounded-2xl w-full text-center flex flex-col gap-6 animate-pulse-slow">
+                <h2 class="text-2xl font-bold text-violet">議論中...</h2>
+                <div class="text-6xl">🗣️</div>
+                <div class="bg-white/40 p-4 rounded-xl">
+                    <div class="text-xs opacity-70 mb-1 text-violet font-bold">あなたのお題</div>
+                    <div class="text-2xl font-bold text-pink-600 filter blur-sm hover:blur-none cursor-pointer transition-all"
+                        x-text="myTopic"></div>
+                </div>
+                <p class="text-sm opacity-80 text-violet">みんなと話し合ってウルフを見つけよう（または騙そう）！</p>
+            </div>
+        </template>
+
+        <!-- Phase: ANSWERING (Sympathy Input) -->
+        <template x-if="hasJoined && phase === 'ANSWERING' && !hasAnswered && mode === 'SYMPATHY'">
+            <div class="w-full flex flex-col gap-6 animate-fade-in">
+                <div class="glass p-6 rounded-2xl">
+                    <div class="text-xs opacity-70 mb-1 text-violet">Questions</div>
+                    <h2 class="text-xl font-bold leading-relaxed text-violet" x-text="currentQuestion"></h2>
+                </div>
+
+                <div class="glass p-4 rounded-2xl">
+                    <textarea x-model="answerInput" rows="3" placeholder="回答を入力..."
+                        class="w-full bg-transparent border-none text-violet placeholder-violet/40 text-xl focus:ring-0 resize-none font-bold"></textarea>
+                </div>
+
+                <!-- Shuffle Power-up -->
+                <div x-show="config.shuffle && shuffleRemaining > 0" class="flex justify-end px-2">
+                    <label class="flex items-center gap-2 cursor-pointer text-violet font-bold">
+                        <input type="checkbox" x-model="useShuffle" class="w-5 h-5 accent-pink-500 rounded">
+                        <span>⚡ アンサーシャッフル (残り1回)</span>
+                    </label>
+                </div>
+
+                <button @click="submitAnswer" :disabled="!answerInput"
+                    class="btn-primary py-4 text-xl font-bold active:scale-95">
+                    送信！
+                </button>
+            </div>
+        </template>
+
+        <!-- Phase: RESULT -->
+        <template x-if="hasJoined && phase === 'RESULT' && mode === 'SYMPATHY'">
+            <div class="glass p-8 rounded-2xl w-full text-center animate-fade-in">
+                <h2 class="text-3xl font-bold mb-6 text-pink">RESULT</h2>
+
+                <div class="mb-8 text-violet">
+                    <div class="text-sm opacity-80 mb-2">あなたの順位</div>
+                    <div class="text-5xl font-mono font-bold" x-text="myRank + '位'"></div>
+                    <div class="text-xl mt-2" x-text="myScore + ' pts'"></div>
+                </div>
+
+                <!-- Bomb Alert -->
+                <template x-if="myPlayerId === bombOwnerId">
+                    <div class="bg-red-100/90 p-4 rounded-xl mb-4 animate-bounce border-2 border-red-500">
+                        <div class="text-5xl mb-2">💣</div>
+                        <div class="font-bold text-red-600 text-lg">DANGER!</div>
+                        <div class="text-sm text-red-800">あなたが「爆弾」を持っています...<br>勝利できません！</div>
+                    </div>
+                </template>
+
+                <p class="text-sm opacity-70 text-violet">Please wait for next round...</p>
+            </div>
+        </template>
+
+    </div>
+
+</body>
+
+</html>
