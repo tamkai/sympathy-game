@@ -324,14 +324,21 @@ function hostApp(networkIp) {
             const touch = event.changedTouches[0];
             const dropElement = document.elementFromPoint(touch.clientX, touch.clientY);
             const dropZone = dropElement?.closest('[data-group-id]');
+            const groupingBoard = dropElement?.closest('#grouping-board');
 
             if (dropZone && this.touchDragAnswerId) {
+                // Dropped on a group - move to that group
                 const targetGroupId = dropZone.dataset.groupId;
                 if (targetGroupId !== this.answers[this.touchDragAnswerId]?.group_id) {
                     this.sendMessage('UPDATE_GROUPING', {
                         answers: { [this.touchDragAnswerId]: { group_id: targetGroupId } }
                     });
                 }
+            } else if (groupingBoard && this.touchDragAnswerId) {
+                // Dropped outside any group but inside the board - ungroup (create own group)
+                this.sendMessage('UPDATE_GROUPING', {
+                    answers: { [this.touchDragAnswerId]: { group_id: this.touchDragAnswerId } }
+                });
             }
             document.querySelectorAll('.opacity-50').forEach(el => el.classList.remove('opacity-50', 'scale-105'));
             this.touchDragAnswerId = null;
