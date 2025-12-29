@@ -98,11 +98,18 @@ function hostApp(networkIp) {
             const parts = document.location.pathname.split('/');
             this.roomId = parts[parts.length - 1] || parts[parts.length - 2];
 
-            if (networkIp && networkIp !== '127.0.0.1') {
-                const protocol = window.location.protocol;
-                const port = window.location.port ? ':' + window.location.port : '';
-                this.joinUrl = protocol + '//' + networkIp + port + "/play/" + this.roomId;
+            // Use origin for production (Render, etc.) or local network IP for local dev
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                // Local development - use network IP for smartphone access
+                if (networkIp && networkIp !== '127.0.0.1') {
+                    const protocol = window.location.protocol;
+                    const port = window.location.port ? ':' + window.location.port : '';
+                    this.joinUrl = protocol + '//' + networkIp + port + "/play/" + this.roomId;
+                } else {
+                    this.joinUrl = window.location.origin + "/play/" + this.roomId;
+                }
             } else {
+                // Production - always use the current origin
                 this.joinUrl = window.location.origin + "/play/" + this.roomId;
             }
 
