@@ -33,6 +33,7 @@ class GameMode(str, Enum):
     SYMPATHY = "SYMPATHY"
     WORD_WOLF = "WORD_WOLF"
     SEKAI_NO_MIKATA = "SEKAI_NO_MIKATA"
+    ITO = "ITO"
 
 class WordWolfState(BaseModel):
     wolf_ids: List[str] = []
@@ -121,6 +122,41 @@ class SekaiNoMikataState(BaseModel):
     used_questions: List[str] = []  # 使用済みお題
     used_words: List[str] = []  # 使用済み単語（偏り防止）
 
+class ItoPlayedCard(BaseModel):
+    """itoで出されたカード"""
+    player_id: str
+    player_name: str
+    number: int
+    order: int  # 何番目に出されたか
+    is_failed: bool = False  # このカードで失敗したか
+
+class ItoState(BaseModel):
+    """itoゲームの状態"""
+    # ゲーム設定
+    is_coop_mode: bool = True  # True: 協力モード（クモノイト）, False: 通常モード
+    close_call_enabled: bool = False  # ギリギリ成功演出
+
+    # お題
+    current_topic: str = ""
+    used_topics: List[str] = []
+
+    # 各プレイヤーの数字 (player_id -> number)
+    player_numbers: Dict[str, int] = {}
+
+    # 出されたカード履歴
+    played_cards: List[ItoPlayedCard] = []
+    last_played_number: int = 0  # 最後に出されたカードの数字
+
+    # ゲーム進行
+    stage: int = 1  # 現在のステージ（1-3）
+    life: int = 3  # 残りライフ
+    is_failed: bool = False  # 現在のステージで失敗したか
+
+    # 結果
+    stage_cleared: bool = False  # 現在のステージをクリアしたか
+    game_cleared: bool = False  # 全ステージクリアしたか
+    game_over: bool = False  # ゲームオーバーか
+
 class Room(BaseModel):
     room_id: str
     phase: Phase = Phase.LOBBY
@@ -135,7 +171,10 @@ class Room(BaseModel):
 
     # Sekai No Mikata State
     sekai_state: Optional[SekaiNoMikataState] = None
-    
+
+    # Ito State
+    ito_state: Optional[ItoState] = None
+
     # Common State
     players: Dict[str, Player] = Field(default_factory=dict)
     winner_id: Optional[str] = None
@@ -144,6 +183,8 @@ class Room(BaseModel):
     config_speed_star: bool = True
     config_shuffle: bool = True
     config_discussion_time: int = 180 # Seconds (Default 3 mins)
+    config_ito_coop: bool = True  # itoの協力モード
+    config_ito_close_call: bool = False  # itoのギリギリ成功演出
     
     # Sympathy Specific State
     shuffle_triggered_in_round: bool = False

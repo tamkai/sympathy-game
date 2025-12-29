@@ -44,6 +44,12 @@ function playerApp() {
         customAnswer: '',   // 自由入力用
         isReader: false,    // 自分が親かどうか
 
+        // Ito State
+        itoState: null,
+        numberRevealed: false,  // 自分の数字を表示するかどうか
+        showPlayCardConfirm: false,  // カード出し確認モーダル
+        winnerId: null,
+
         init() {
             // Robust roomId extraction
             const parts = document.location.pathname.split('/');
@@ -162,6 +168,19 @@ function playerApp() {
                     }
                 }
 
+                // Ito State Sync
+                if (this.mode === 'ITO' && data.ito_state) {
+                    this.itoState = data.ito_state;
+
+                    // 新しいステージになったらリセット
+                    if (this.phase === 'INSTRUCTION' || (this.phase === 'ANSWERING' && !this.hasAnswered)) {
+                        this.showPlayCardConfirm = false;
+                    }
+                }
+
+                // WinnerId
+                this.winnerId = data.winner_id;
+
             } else {
                 // Not in room list yet
                 if (this.hasJoined) {
@@ -236,6 +255,19 @@ function playerApp() {
             if (!this.sekaiState || !this.sekaiState.current_reader_id) return '';
             const player = this.players[this.sekaiState.current_reader_id];
             return player ? player.name : '';
+        },
+
+        // Ito: カードを出す
+        playItoCard() {
+            this.showPlayCardConfirm = false;
+            this.sendMessage('ITO_PLAY_CARD', {});
+            this.hasAnswered = true;
+        },
+
+        // Ito: 自分の数字を取得
+        get myNumber() {
+            if (!this.itoState || !this.itoState.player_numbers) return '?';
+            return this.itoState.player_numbers[this.clientId] || '?';
         }
     }
 }

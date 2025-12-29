@@ -83,11 +83,16 @@ function hostApp(networkIp) {
         speedStarId: null,
         wordWolfState: null,
         sekaiState: null,  // Sekai No Mikata State
+        itoState: null,    // Ito State
+        showItoFailedOverlay: false,  // ito失敗演出用
+        showItoSuccessOverlay: false,  // ito成功演出用
 
         config: {
             speedStar: true,
             shuffle: true,
-            discussionTime: 180
+            discussionTime: 180,
+            itoCoop: true,
+            itoCloseCall: false
         },
 
         // Computed / UI State
@@ -191,10 +196,40 @@ function hostApp(networkIp) {
             this.wordWolfState = data.word_wolf_state;
             this.sekaiState = data.sekai_state;
 
+            // ito失敗検知
+            const oldItoState = this.itoState;
+            this.itoState = data.ito_state;
+
+            // カードが出された瞬間を検知
+            if (this.itoState && oldItoState) {
+                const oldCardCount = oldItoState.played_cards?.length || 0;
+                const newCardCount = this.itoState.played_cards?.length || 0;
+                const oldFailedCount = oldItoState.played_cards?.filter(c => c.is_failed).length || 0;
+                const newFailedCount = this.itoState.played_cards?.filter(c => c.is_failed).length || 0;
+
+                if (newFailedCount > oldFailedCount) {
+                    // 失敗カードが新たに出された
+                    this.showItoFailedOverlay = true;
+                    this.sounds.play('timeup'); // 失敗音
+                    setTimeout(() => {
+                        this.showItoFailedOverlay = false;
+                    }, 2000);
+                } else if (newCardCount > oldCardCount && newFailedCount === oldFailedCount) {
+                    // 成功カードが出された（カードは増えたが失敗は増えてない）
+                    this.showItoSuccessOverlay = true;
+                    this.sounds.play('reveal'); // 成功音
+                    setTimeout(() => {
+                        this.showItoSuccessOverlay = false;
+                    }, 1500);
+                }
+            }
+
             this.config = {
                 speedStar: data.config_speed_star,
                 shuffle: data.config_shuffle,
-                discussionTime: data.config_discussion_time
+                discussionTime: data.config_discussion_time,
+                itoCoop: data.config_ito_coop ?? true,
+                itoCloseCall: data.config_ito_close_call ?? false
             };
 
             if (this.phase === 'LOBBY' && oldPhase !== 'LOBBY') {
@@ -211,11 +246,19 @@ function hostApp(networkIp) {
         // --- Actions ---
 
         toggleConfig(key) {
-            this.config[key] = !this.config[key];
-            this.sendMessage('UPDATE_CONFIG', {
-                type: key === 'speedStar' ? 'speed_star' : 'shuffle',
-                value: this.config[key]
-            });
+            if (key === 'speedStar') {
+                this.config.speedStar = !this.config.speedStar;
+                this.sendMessage('UPDATE_CONFIG', { type: 'speed_star', value: this.config.speedStar });
+            } else if (key === 'shuffle') {
+                this.config.shuffle = !this.config.shuffle;
+                this.sendMessage('UPDATE_CONFIG', { type: 'shuffle', value: this.config.shuffle });
+            } else if (key === 'ito_coop') {
+                this.config.itoCoop = !this.config.itoCoop;
+                this.sendMessage('UPDATE_CONFIG', { type: 'ito_coop', value: this.config.itoCoop });
+            } else if (key === 'ito_close_call') {
+                this.config.itoCloseCall = !this.config.itoCloseCall;
+                this.sendMessage('UPDATE_CONFIG', { type: 'ito_close_call', value: this.config.itoCloseCall });
+            }
         },
 
         updateDiscussionTime(delta) {
@@ -278,6 +321,19 @@ function hostApp(networkIp) {
 
         sekaiNextRound() {
             this.sendMessage('SEKAI_NEXT_ROUND');
+        },
+
+        // --- Ito Actions ---
+        itoNextStage() {
+            this.sendMessage('ITO_NEXT_STAGE');
+        },
+
+        itoShowResult() {
+            this.sendMessage('ITO_SHOW_RESULT');
+        },
+
+        itoPlayAgain() {
+            this.sendMessage('START_GAME', { mode: 'ITO' });
         },
 
         // Helper to get current reader name
