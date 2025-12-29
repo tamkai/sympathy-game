@@ -32,6 +32,7 @@ class Answer(BaseModel):
 class GameMode(str, Enum):
     SYMPATHY = "SYMPATHY"
     WORD_WOLF = "WORD_WOLF"
+    SEKAI_NO_MIKATA = "SEKAI_NO_MIKATA"
 
 class WordWolfState(BaseModel):
     wolf_ids: List[str] = []
@@ -91,6 +92,35 @@ class WordWolfState(BaseModel):
             self.wolf_won = True
             self.winning_reason = "ウルフは正体を隠し通しました！"
 
+class SekaiAnswer(BaseModel):
+    """セカイノミカタの回答"""
+    answer_id: str
+    player_id: str
+    player_name: str
+    text: str
+    is_dummy: bool = False  # ダミー（山札）かどうか
+
+class SekaiNoMikataState(BaseModel):
+    """セカイノミカタ（私の世界の見方風）のゲーム状態"""
+    current_reader_id: Optional[str] = None  # 親（読み手）のID
+    reader_order: List[str] = []  # 親の順番
+    current_reader_index: int = 0
+
+    current_question: str = ""  # 現在のお題（空欄付き）
+    word_choices: Dict[str, List[str]] = {}  # player_id -> 選択肢の単語リスト
+
+    submitted_answers: Dict[str, SekaiAnswer] = {}  # answer_id -> SekaiAnswer
+    dummy_answers: List[SekaiAnswer] = []  # ダミー回答（山札から）
+
+    all_answers_for_display: List[SekaiAnswer] = []  # シャッフル後の全回答（表示用）
+
+    selected_answer_id: Optional[str] = None  # 親が選んだ回答のID
+    round_number: int = 1
+    winning_score: int = 5  # 勝利に必要な得点
+
+    used_questions: List[str] = []  # 使用済みお題
+    used_words: List[str] = []  # 使用済み単語（偏り防止）
+
 class Room(BaseModel):
     room_id: str
     phase: Phase = Phase.LOBBY
@@ -102,6 +132,9 @@ class Room(BaseModel):
     
     # Word Wolf State
     word_wolf_state: Optional[WordWolfState] = None
+
+    # Sekai No Mikata State
+    sekai_state: Optional[SekaiNoMikataState] = None
     
     # Common State
     players: Dict[str, Player] = Field(default_factory=dict)

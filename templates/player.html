@@ -199,6 +199,109 @@
             </div>
         </template>
 
+        <!-- ======================= -->
+        <!-- SEKAI NO MIKATA PHASES -->
+        <!-- ======================= -->
+
+        <!-- Phase: ANSWERING (Sekai - 親の場合：待機) -->
+        <template x-if="hasJoined && phase === 'ANSWERING' && mode === 'SEKAI_NO_MIKATA' && isReader">
+            <div class="glass p-6 rounded-2xl w-full text-center flex flex-col gap-4 animate-fade-in">
+                <div class="bg-amber-500 text-white px-4 py-2 rounded-full font-bold inline-block mx-auto">
+                    あなたは親です
+                </div>
+                <div class="text-4xl">👑</div>
+                <div class="bg-white/40 p-4 rounded-xl">
+                    <div class="text-sm text-violet/70 mb-1">今回のお題</div>
+                    <div class="text-xl font-bold text-violet" x-text="sekaiState?.current_question || ''"></div>
+                </div>
+                <p class="text-sm text-violet opacity-80">
+                    みんなの回答を待っています...<br>
+                    回答が揃ったらお気に入りを選んでね！
+                </p>
+                <div class="text-6xl animate-pulse">⏳</div>
+            </div>
+        </template>
+
+        <!-- Phase: ANSWERING (Sekai - 子の場合：回答入力) -->
+        <template x-if="hasJoined && phase === 'ANSWERING' && mode === 'SEKAI_NO_MIKATA' && !isReader && !hasAnswered">
+            <div class="w-full flex flex-col gap-4 animate-fade-in">
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-violet/70 mb-1">親: <span x-text="sekaiReaderName"></span></div>
+                    <div class="text-lg font-bold text-violet" x-text="sekaiState?.current_question || ''"></div>
+                </div>
+
+                <div class="glass p-4 rounded-xl">
+                    <div class="text-sm font-bold text-violet mb-3">単語を選んでね！</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <template x-for="word in myWordChoices" :key="word">
+                            <button @click="selectWord(word)"
+                                :class="selectedWord === word ? 'bg-amber-500 text-white ring-2 ring-amber-300' : 'bg-white/80 text-violet hover:bg-amber-100'"
+                                class="p-3 rounded-xl font-bold text-sm transition-all">
+                                <span x-text="word"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="glass p-4 rounded-xl">
+                    <div class="text-sm font-bold text-violet mb-2">または自由入力</div>
+                    <input type="text" x-model="customAnswer" @input="selectedWord = ''"
+                        placeholder="オリジナルの回答を入力..."
+                        class="w-full p-3 rounded-xl border-2 border-violet/20 focus:border-amber-400 focus:outline-none text-violet font-bold">
+                </div>
+
+                <button @click="submitSekaiAnswer" :disabled="!selectedWord && !customAnswer"
+                    class="w-full py-4 text-xl font-bold bg-amber-500 text-white rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-600 transition">
+                    回答を送信！
+                </button>
+            </div>
+        </template>
+
+        <!-- Phase: ANSWERING (Sekai - 回答済み) -->
+        <template x-if="hasJoined && phase === 'ANSWERING' && mode === 'SEKAI_NO_MIKATA' && !isReader && hasAnswered">
+            <div class="glass p-8 rounded-2xl w-full text-center flex flex-col gap-4 animate-fade-in">
+                <div class="text-4xl">✅</div>
+                <h2 class="text-xl font-bold text-violet">回答送信済み！</h2>
+                <p class="text-sm text-violet opacity-80">他のプレイヤーを待っています...</p>
+            </div>
+        </template>
+
+        <!-- Phase: JUDGING (Sekai - 親が選んでいる間) -->
+        <template x-if="hasJoined && phase === 'JUDGING' && mode === 'SEKAI_NO_MIKATA'">
+            <div class="glass p-8 rounded-2xl w-full text-center flex flex-col gap-4 animate-fade-in">
+                <div class="text-4xl animate-bounce">🤔</div>
+                <h2 class="text-xl font-bold text-violet">
+                    <span x-text="sekaiReaderName"></span>が選んでいます...
+                </h2>
+                <p class="text-sm text-violet opacity-80">親がお気に入りの回答を選んでいます</p>
+            </div>
+        </template>
+
+        <!-- Phase: RESULT (Sekai) -->
+        <template x-if="hasJoined && phase === 'RESULT' && mode === 'SEKAI_NO_MIKATA'">
+            <div class="glass p-6 rounded-2xl w-full text-center flex flex-col gap-4 animate-fade-in">
+                <h2 class="text-xl font-bold text-violet">結果発表！</h2>
+
+                <div class="bg-white/40 p-4 rounded-xl">
+                    <div class="text-2xl font-bold text-violet" x-text="myScore + ' pt'"></div>
+                    <div class="text-sm text-violet/70">あなたのスコア</div>
+                </div>
+
+                <div class="text-sm text-violet">
+                    順位: <span class="font-bold text-lg" x-text="myRank"></span>位
+                </div>
+
+                <template x-if="winnerId === clientId">
+                    <div class="bg-gradient-to-r from-yellow-300 to-amber-400 p-6 rounded-2xl text-center">
+                        <div class="text-4xl mb-2">🎉🏆🎉</div>
+                        <div class="text-2xl font-bold text-amber-800">優勝！</div>
+                    </div>
+                </template>
+
+                <p class="text-sm text-violet opacity-70">ホストの画面を見てね！</p>
+            </div>
+        </template>
+
     </div>
 
 </body>

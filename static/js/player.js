@@ -37,6 +37,13 @@ function playerApp() {
         voteTarget: '',
         topicRevealed: false, // For tap-to-reveal on touch devices
 
+        // Sekai No Mikata State
+        sekaiState: null,
+        myWordChoices: [],  // 自分用の単語選択肢
+        selectedWord: '',   // 選んだ単語
+        customAnswer: '',   // 自由入力用
+        isReader: false,    // 自分が親かどうか
+
         init() {
             // Robust roomId extraction
             const parts = document.location.pathname.split('/');
@@ -138,6 +145,23 @@ function playerApp() {
                     if (this.phase === 'LOBBY') { this.voteTarget = ''; }
                 }
 
+                // Sekai No Mikata State Sync
+                if (this.mode === 'SEKAI_NO_MIKATA' && data.sekai_state) {
+                    this.sekaiState = data.sekai_state;
+                    this.isReader = this.sekaiState.current_reader_id === this.clientId;
+
+                    // 自分用の単語選択肢を取得
+                    if (this.sekaiState.word_choices && this.sekaiState.word_choices[this.clientId]) {
+                        this.myWordChoices = this.sekaiState.word_choices[this.clientId];
+                    }
+
+                    // 新しいラウンドになったら入力をリセット
+                    if (this.phase === 'ANSWERING' && !this.hasAnswered) {
+                        this.selectedWord = '';
+                        this.customAnswer = '';
+                    }
+                }
+
             } else {
                 // Not in room list yet
                 if (this.hasJoined) {
@@ -187,10 +211,31 @@ function playerApp() {
             this.hasAnswered = true; // Recycle this flag for "Has Voted" in simple UI
         },
 
+        // Sekai No Mikata: 回答を送信
+        submitSekaiAnswer() {
+            const text = this.selectedWord || this.customAnswer;
+            if (!text) return;
+            this.sendMessage('SEKAI_SUBMIT_ANSWER', { text: text });
+            this.hasAnswered = true;
+        },
+
+        // 単語を選択
+        selectWord(word) {
+            this.selectedWord = word;
+            this.customAnswer = '';  // 選択したらカスタム入力はクリア
+        },
+
         get myRank() {
             const sorted = Object.values(this.players).sort((a, b) => b.score - a.score);
             const index = sorted.findIndex(p => p.player_id === this.clientId);
             return index + 1;
+        },
+
+        // Sekai: 親の名前を取得
+        get sekaiReaderName() {
+            if (!this.sekaiState || !this.sekaiState.current_reader_id) return '';
+            const player = this.players[this.sekaiState.current_reader_id];
+            return player ? player.name : '';
         }
     }
 }

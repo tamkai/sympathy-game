@@ -57,21 +57,29 @@
                         <h2 class="text-2xl font-bold text-violet mb-2 border-b border-white/50 pb-2">Game Select</h2>
 
                         <!-- Mode Selector -->
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-3 gap-3">
                             <button @click="selectedMode = 'SYMPATHY'"
                                 :class="selectedMode === 'SYMPATHY' ? 'bg-gradient-to-br from-pink-400 to-pink-600 text-white shadow-lg scale-105' : 'bg-white/50 text-violet hover:bg-white/80'"
-                                class="p-6 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
-                                <div class="text-4xl group-hover:scale-110 transition-transform">💖</div>
-                                <div class="font-bold text-lg">Sympathy</div>
-                                <div class="text-xs opacity-80">共感パーティゲーム</div>
+                                class="p-4 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
+                                <div class="text-3xl group-hover:scale-110 transition-transform">💖</div>
+                                <div class="font-bold text-sm">Sympathy</div>
+                                <div class="text-xs opacity-80">共感ゲーム</div>
                             </button>
 
                             <button @click="selectedMode = 'WORD_WOLF'"
                                 :class="selectedMode === 'WORD_WOLF' ? 'bg-gradient-to-br from-indigo-400 to-purple-600 text-white shadow-lg scale-105' : 'bg-white/50 text-violet hover:bg-white/80'"
-                                class="p-6 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
-                                <div class="text-4xl group-hover:scale-110 transition-transform">🐺</div>
-                                <div class="font-bold text-lg">Word Wolf</div>
-                                <div class="text-xs opacity-80">正体隠匿系ゲーム</div>
+                                class="p-4 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
+                                <div class="text-3xl group-hover:scale-110 transition-transform">🐺</div>
+                                <div class="font-bold text-sm">Word Wolf</div>
+                                <div class="text-xs opacity-80">正体隠匿系</div>
+                            </button>
+
+                            <button @click="selectedMode = 'SEKAI_NO_MIKATA'"
+                                :class="selectedMode === 'SEKAI_NO_MIKATA' ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg scale-105' : 'bg-white/50 text-violet hover:bg-white/80'"
+                                class="p-4 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center gap-2 group">
+                                <div class="text-3xl group-hover:scale-110 transition-transform">🌍</div>
+                                <div class="font-bold text-sm">セカイノミカタ</div>
+                                <div class="text-xs opacity-80">大喜利ゲーム</div>
                             </button>
                         </div>
 
@@ -117,6 +125,18 @@
                                         <button @click="updateDiscussionTime(60)"
                                             class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-violet hover:bg-pink-100 transition">+</button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Sekai No Mikata Config -->
+                            <div x-show="selectedMode === 'SEKAI_NO_MIKATA'" class="flex flex-col gap-4">
+                                <p class="text-violet text-sm">
+                                    お題の空欄を単語で埋めて、親のお気に入りを目指そう！<br>
+                                    親が山札（ダミー）を選ぶと全員マイナス1点！
+                                </p>
+                                <div class="text-xs text-violet/70">
+                                    ・2〜8人で遊べます<br>
+                                    ・先に規定点数（2-4人:5点、5人以上:3点）を取った人の勝ち
                                 </div>
                             </div>
                         </div>
@@ -573,6 +593,168 @@
                     </button>
                     <button x-show="!winnerId" type="button" @click="nextRound"
                         class="glass px-10 py-3 rounded-full font-bold text-violet hover:bg-white/50 transition bg-white/30">
+                        次のラウンドへ
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- ======================= -->
+        <!-- SEKAI NO MIKATA PHASES -->
+        <!-- ======================= -->
+
+        <!-- Phase: ANSWERING (Sekai No Mikata) -->
+        <template x-if="phase === 'ANSWERING' && mode === 'SEKAI_NO_MIKATA' && sekaiState">
+            <div class="glass p-8 rounded-3xl w-full max-w-4xl flex flex-col gap-6 animate-fade-in">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-violet">
+                        Round <span x-text="sekaiState.round_number"></span>
+                    </h2>
+                    <div class="bg-amber-500 text-white px-4 py-1 rounded-full font-bold">
+                        親: <span x-text="sekaiReaderName"></span>
+                    </div>
+                </div>
+
+                <div class="glass-dark p-6 rounded-2xl text-center">
+                    <div class="text-sm text-white/70 mb-2">今回のお題</div>
+                    <div class="text-2xl font-bold text-white" x-text="sekaiState.current_question"></div>
+                </div>
+
+                <div class="flex items-center justify-center gap-4 py-8">
+                    <div class="text-6xl animate-bounce">📝</div>
+                    <div class="text-violet">
+                        <div class="text-xl font-bold">回答待ち...</div>
+                        <div class="text-sm opacity-70">
+                            <span x-text="Object.values(players).filter(p => p.has_answered).length"></span> /
+                            <span x-text="Object.keys(players).length"></span> 人が回答済み
+                        </div>
+                    </div>
+                </div>
+
+                <!-- スコアボード -->
+                <div class="bg-white/30 p-4 rounded-xl">
+                    <h3 class="font-bold text-violet mb-2">スコア</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="player in Object.values(players).sort((a,b) => b.score - a.score)" :key="player.player_id">
+                            <div class="bg-white/50 px-3 py-1 rounded-full text-sm font-bold text-violet"
+                                 :class="player.player_id === sekaiState.current_reader_id ? 'ring-2 ring-amber-500' : ''">
+                                <span x-text="player.name"></span>: <span x-text="player.score"></span>pt
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: JUDGING (Sekai No Mikata - 親が回答を選ぶ) -->
+        <template x-if="phase === 'JUDGING' && mode === 'SEKAI_NO_MIKATA' && sekaiState">
+            <div class="glass p-8 rounded-3xl w-full max-w-4xl flex flex-col gap-6 animate-fade-in">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-violet">回答発表タイム！</h2>
+                    <div class="bg-amber-500 text-white px-4 py-1 rounded-full font-bold">
+                        親: <span x-text="sekaiReaderName"></span>
+                    </div>
+                </div>
+
+                <div class="glass-dark p-4 rounded-xl text-center">
+                    <div class="text-lg font-bold text-white" x-text="sekaiState.current_question"></div>
+                </div>
+
+                <p class="text-center text-violet font-bold">お気に入りの回答を選んでください！</p>
+
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <template x-for="answer in sekaiState.all_answers_for_display" :key="answer.answer_id">
+                        <button @click="sekaiSelectAnswer(answer.answer_id)"
+                            class="p-6 bg-white hover:bg-amber-50 rounded-2xl shadow-md hover:shadow-lg hover:scale-105 transition-all text-center border-2 border-transparent hover:border-amber-400">
+                            <div class="text-2xl font-bold text-violet" x-text="answer.text"></div>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- Phase: RESULT (Sekai No Mikata) -->
+        <template x-if="phase === 'RESULT' && mode === 'SEKAI_NO_MIKATA' && sekaiState">
+            <div class="glass p-8 rounded-3xl w-full max-w-5xl flex flex-col gap-6 animate-fade-in">
+                <h2 class="text-3xl font-bold text-center text-violet border-b border-white/30 pb-4">結果発表！</h2>
+
+                <!-- お題と選ばれた回答 -->
+                <div class="glass-dark p-6 rounded-2xl text-center">
+                    <div class="text-sm text-white/70 mb-2">お題</div>
+                    <div class="text-xl font-bold text-white mb-4" x-text="sekaiState.current_question"></div>
+                    <div class="text-sm text-amber-300 mb-1">親が選んだのは...</div>
+                    <div class="text-4xl font-bold text-amber-400" x-text="sekaiSelectedAnswer?.text || ''"></div>
+                </div>
+
+                <!-- 誰の回答だったか -->
+                <div class="text-center py-4">
+                    <template x-if="sekaiSelectedAnswer?.is_dummy">
+                        <div class="bg-red-100 p-6 rounded-2xl border-2 border-red-400">
+                            <div class="text-4xl mb-2">😱</div>
+                            <div class="text-2xl font-bold text-red-600">山札だった！</div>
+                            <div class="text-red-500">全員 -1pt</div>
+                        </div>
+                    </template>
+                    <template x-if="!sekaiSelectedAnswer?.is_dummy">
+                        <div class="bg-green-100 p-6 rounded-2xl border-2 border-green-400">
+                            <div class="text-4xl mb-2">🎉</div>
+                            <div class="text-2xl font-bold text-green-600">
+                                <span x-text="sekaiSelectedAnswer?.player_name"></span> の回答！
+                            </div>
+                            <div class="text-green-500">+1pt ゲット！</div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- 全回答一覧 -->
+                <div class="bg-white/30 p-4 rounded-xl">
+                    <h3 class="font-bold text-violet mb-3">全回答</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <template x-for="answer in sekaiState.all_answers_for_display" :key="answer.answer_id">
+                            <div class="p-3 rounded-lg text-sm"
+                                 :class="answer.answer_id === sekaiState.selected_answer_id ? 'bg-amber-200 ring-2 ring-amber-500' : (answer.is_dummy ? 'bg-red-100' : 'bg-white/50')">
+                                <div class="font-bold text-violet" x-text="answer.text"></div>
+                                <div class="text-xs text-violet/60" x-text="answer.is_dummy ? '(山札)' : answer.player_name"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- スコアボード -->
+                <div class="bg-white/30 p-4 rounded-xl">
+                    <h3 class="font-bold text-violet mb-3">スコアランキング</h3>
+                    <div class="space-y-2">
+                        <template x-for="(player, index) in Object.values(players).sort((a,b) => b.score - a.score)" :key="player.player_id">
+                            <div class="flex items-center justify-between bg-white/50 p-3 rounded-lg">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xl" x-text="index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : ''))"></span>
+                                    <span class="font-bold text-violet" x-text="player.name"></span>
+                                </div>
+                                <span class="font-mono font-bold text-lg text-violet" x-text="player.score + ' pt'"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 勝者表示 -->
+                <template x-if="winnerId">
+                    <div class="bg-gradient-to-r from-yellow-300/50 to-amber-300/50 p-8 rounded-2xl text-center border-4 border-yellow-400">
+                        <div class="text-6xl mb-4">🎉🏆🎉</div>
+                        <h2 class="text-4xl font-bold text-violet mb-2">GAME OVER!</h2>
+                        <p class="text-2xl font-bold text-amber-600">
+                            優勝: <span x-text="players[winnerId]?.name || 'Unknown'"></span>
+                        </p>
+                    </div>
+                </template>
+
+                <!-- アクションボタン -->
+                <div class="flex gap-4 justify-center">
+                    <button type="button" @click="showResetModal = true"
+                        class="glass px-6 py-3 rounded-full font-bold text-pink hover:bg-white/50 transition border border-pink-300">
+                        ゲーム終了
+                    </button>
+                    <button x-show="!winnerId" type="button" @click="sekaiNextRound"
+                        class="bg-amber-500 hover:bg-amber-600 text-white px-10 py-3 rounded-full font-bold shadow-lg transition">
                         次のラウンドへ
                     </button>
                 </div>

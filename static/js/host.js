@@ -82,6 +82,7 @@ function hostApp(networkIp) {
         winnerId: null,
         speedStarId: null,
         wordWolfState: null,
+        sekaiState: null,  // Sekai No Mikata State
 
         config: {
             speedStar: true,
@@ -188,6 +189,7 @@ function hostApp(networkIp) {
             this.winnerId = data.winner_id;
             this.speedStarId = data.speed_star_id;
             this.wordWolfState = data.word_wolf_state;
+            this.sekaiState = data.sekai_state;
 
             this.config = {
                 speedStar: data.config_speed_star,
@@ -267,6 +269,30 @@ function hostApp(networkIp) {
                 speed_star: this.config.speedStar,
                 shuffle: this.config.shuffle
             });
+        },
+
+        // --- Sekai No Mikata Actions ---
+        sekaiSelectAnswer(answerId) {
+            this.sendMessage('SEKAI_SELECT_ANSWER', { answer_id: answerId });
+        },
+
+        sekaiNextRound() {
+            this.sendMessage('SEKAI_NEXT_ROUND');
+        },
+
+        // Helper to get current reader name
+        get sekaiReaderName() {
+            if (!this.sekaiState || !this.sekaiState.current_reader_id) return '';
+            const player = this.players[this.sekaiState.current_reader_id];
+            return player ? player.name : '';
+        },
+
+        // Helper to get selected answer details
+        get sekaiSelectedAnswer() {
+            if (!this.sekaiState || !this.sekaiState.selected_answer_id) return null;
+            return this.sekaiState.all_answers_for_display.find(
+                a => a.answer_id === this.sekaiState.selected_answer_id
+            );
         },
 
         // --- Drag & Drop ---
