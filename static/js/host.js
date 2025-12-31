@@ -10,9 +10,18 @@ class SoundManager {
             'vote': 'vote.mp3',
             'reveal': 'reveal.mp3',
             'decision': 'decision.mp3',
-            'result': 'result.mp3'
+            'result': 'result.mp3',
+            // ワンナイト人狼の夜フェーズ音声
+            'night_closing_eyes': 'closing_eyes.wav',
+            'night_werewolf': 'werewolf.wav',
+            'night_seer': 'seer.wav',
+            'night_thief': 'thief.wav',
+            'night_done': 'done.wav',
+            'were_reveal': 'were_reveal.mp3'
         };
         this.enabled = false;
+        this.activeSources = [];  // 再生中の音源を追跡
+        this.pendingTimers = [];  // 待機中のタイマーを追跡
     }
 
     init() {
@@ -44,16 +53,86 @@ class SoundManager {
         }
     }
 
-    play(key) {
-        if (!this.enabled || !this.ctx || !this.buffers[key]) return;
+    play(key, onEnded = null) {
+        if (!this.enabled || !this.ctx) {
+            // オーディオが無効な場合は5秒後にコールバック
+            if (onEnded) {
+                const timerId = setTimeout(onEnded, 5000);
+                this.pendingTimers.push(timerId);
+            }
+            return;
+        }
+
+        // バッファがまだロードされていない場合は待機してリトライ
+        if (!this.buffers[key]) {
+            console.log("Buffer not ready for", key, "- waiting...");
+            let retryCount = 0;
+            const maxRetries = 20; // 最大2秒待機
+            const checkBuffer = () => {
+                retryCount++;
+                if (this.buffers[key]) {
+                    // バッファが準備できた
+                    this.play(key, onEnded);
+                } else if (retryCount >= maxRetries) {
+                    // タイムアウト - 5秒後にコールバック
+                    console.warn("Buffer load timeout for", key);
+                    if (onEnded) {
+                        const timerId = setTimeout(onEnded, 5000);
+                        this.pendingTimers.push(timerId);
+                    }
+                } else {
+                    // 100ms後に再チェック
+                    const timerId = setTimeout(checkBuffer, 100);
+                    this.pendingTimers.push(timerId);
+                }
+            };
+            const timerId = setTimeout(checkBuffer, 100);
+            this.pendingTimers.push(timerId);
+            return;
+        }
+
         try {
             const source = this.ctx.createBufferSource();
             source.buffer = this.buffers[key];
             source.connect(this.ctx.destination);
+
+            // 再生終了時にリストから削除
+            source.onended = () => {
+                const index = this.activeSources.indexOf(source);
+                if (index > -1) {
+                    this.activeSources.splice(index, 1);
+                }
+                if (onEnded) onEnded();
+            };
+
             source.start(0);
+            this.activeSources.push(source);  // 再生中リストに追加
         } catch (e) {
             console.error("Play Error", e);
+            if (onEnded) {
+                const timerId = setTimeout(onEnded, 5000);
+                this.pendingTimers.push(timerId);
+            }
         }
+    }
+
+    // すべての再生を停止
+    stopAll() {
+        // 再生中の音源を停止
+        for (const source of this.activeSources) {
+            try {
+                source.stop();
+            } catch (e) {
+                // すでに停止している場合は無視
+            }
+        }
+        this.activeSources = [];
+
+        // 待機中のタイマーをクリア
+        for (const timerId of this.pendingTimers) {
+            clearTimeout(timerId);
+        }
+        this.pendingTimers = [];
     }
 }
 
@@ -84,15 +163,22 @@ function hostApp(networkIp) {
         wordWolfState: null,
         sekaiState: null,  // Sekai No Mikata State
         itoState: null,    // Ito State
+        werewolfState: null, // One Night Werewolf State
         showItoFailedOverlay: false,  // ito失敗演出用
         showItoSuccessOverlay: false,  // ito成功演出用
+        discussionTimeRemaining: 0, // 議論残り時間
+        discussionTimer: null,  // 議論タイマー
+        nightCountdown: 0,  // 夜フェーズカウントダウン
+        nightCountdownTimer: null,  // 夜フェーズカウントダウンタイマー
+        lastNightPhase: null,  // 前回の夜フェーズ（自動TTS用）
 
         config: {
             speedStar: true,
             shuffle: true,
             discussionTime: 180,
             itoCoop: true,
-            itoCloseCall: false
+            itoCloseCall: false,
+            werewolfMadman: true
         },
 
         // Computed / UI State
@@ -121,6 +207,29 @@ function hostApp(networkIp) {
 
             this.connectWebSocket();
             this.generateQRCode();
+
+            // ページリロード/離脱時にクリーンアップ
+            window.addEventListener('beforeunload', () => {
+                this.cleanup();
+            });
+        },
+
+        // クリーンアップ処理
+        cleanup() {
+            // 音声再生を停止
+            this.sounds.stopAll();
+
+            // 夜フェーズカウントダウンタイマーを停止
+            if (this.nightCountdownTimer) {
+                clearInterval(this.nightCountdownTimer);
+                this.nightCountdownTimer = null;
+            }
+
+            // 議論タイマーを停止
+            if (this.discussionTimer) {
+                clearInterval(this.discussionTimer);
+                this.discussionTimer = null;
+            }
         },
 
         connectWebSocket() {
@@ -169,7 +278,12 @@ function hostApp(networkIp) {
                         this.sounds.play('start');
                     }
                 } else if (this.phase === 'RESULT') {
-                    this.sounds.play('reveal');
+                    // ワンナイト人狼は専用の結果発表音
+                    if (this.mode === 'ONE_NIGHT_WEREWOLF') {
+                        this.sounds.play('were_reveal');
+                    } else {
+                        this.sounds.play('reveal');
+                    }
                 } else if (this.phase === 'JUDGING') {
                     if (this.mode !== 'SYMPATHY') {
                         this.sounds.play('decision');
@@ -229,8 +343,42 @@ function hostApp(networkIp) {
                 shuffle: data.config_shuffle,
                 discussionTime: data.config_discussion_time,
                 itoCoop: data.config_ito_coop ?? true,
-                itoCloseCall: data.config_ito_close_call ?? false
+                itoCloseCall: data.config_ito_close_call ?? false,
+                werewolfMadman: data.config_werewolf_madman ?? true
             };
+
+            // Werewolf State
+            const oldWerewolfState = this.werewolfState;
+            this.werewolfState = data.werewolf_state;
+
+            // 夜フェーズの自動音声再生
+            if (this.mode === 'ONE_NIGHT_WEREWOLF' && this.werewolfState) {
+                const currentNightPhase = this.werewolfState.night_phase;
+                if (currentNightPhase !== this.lastNightPhase) {
+                    this.lastNightPhase = currentNightPhase;
+                    // フェーズが変わったら自動で音声を再生
+                    this.autoPlayNightAudio(currentNightPhase);
+                }
+
+                // 行動完了時にカウントダウンを5秒にリセット
+                if (oldWerewolfState && this.werewolfState.night_actions_done) {
+                    const oldActionsDone = oldWerewolfState.night_actions_done || {};
+                    const newActionsDone = this.werewolfState.night_actions_done;
+                    // 新しく行動完了した人がいる場合
+                    const newlyDone = Object.keys(newActionsDone).some(pid => !oldActionsDone[pid]);
+                    if (newlyDone && this.nightCountdownTimer && this.nightCountdown > 5) {
+                        // カウントダウンを5秒にリセット
+                        this.nightCountdown = 5;
+                    }
+                }
+            }
+
+            // 議論タイマーの開始（ワンナイト人狼 or WordWolf）
+            if (this.phase === 'JUDGING' && this.mode === 'ONE_NIGHT_WEREWOLF' && this.werewolfState) {
+                this.startDiscussionTimer(this.werewolfState.discussion_end_time);
+            } else if (this.phase === 'ANSWERING' && this.mode === 'WORD_WOLF' && this.wordWolfState) {
+                this.startDiscussionTimer(this.wordWolfState.discussion_end_time);
+            }
 
             if (this.phase === 'LOBBY' && oldPhase !== 'LOBBY') {
                 this.generateQRCode();
@@ -258,6 +406,9 @@ function hostApp(networkIp) {
             } else if (key === 'ito_close_call') {
                 this.config.itoCloseCall = !this.config.itoCloseCall;
                 this.sendMessage('UPDATE_CONFIG', { type: 'ito_close_call', value: this.config.itoCloseCall });
+            } else if (key === 'werewolf_madman') {
+                this.config.werewolfMadman = !this.config.werewolfMadman;
+                this.sendMessage('UPDATE_CONFIG', { type: 'werewolf_madman', value: this.config.werewolfMadman });
             }
         },
 
@@ -334,6 +485,134 @@ function hostApp(networkIp) {
 
         itoPlayAgain() {
             this.sendMessage('START_GAME', { mode: 'ITO' });
+        },
+
+        // --- Werewolf Actions ---
+        werewolfStartNight() {
+            this.sendMessage('WEREWOLF_START_NIGHT');
+        },
+
+        werewolfAdvanceNight() {
+            this.sendMessage('WEREWOLF_ADVANCE_NIGHT');
+        },
+
+        werewolfStartDiscussion() {
+            this.sendMessage('WEREWOLF_START_DISCUSSION');
+        },
+
+        werewolfFinishVoting() {
+            this.sendMessage('WEREWOLF_FINISH_VOTING');
+        },
+
+        werewolfPlayAgain() {
+            this.sendMessage('START_GAME', { mode: 'ONE_NIGHT_WEREWOLF' });
+        },
+
+        // 夜フェーズの自動音声再生
+        autoPlayNightAudio(phase) {
+            let soundKey = '';
+            let countdownTime = 10;  // デフォルト10秒
+
+            // その役職のプレイヤーがいるかチェック
+            const hasRolePlayer = (role) => {
+                if (!this.werewolfState || !this.werewolfState.original_roles) return false;
+                return Object.values(this.werewolfState.original_roles).includes(role);
+            };
+
+            if (phase === 'closing_eyes') {
+                soundKey = 'night_closing_eyes';
+                countdownTime = 3;  // 目を閉じるは3秒
+            } else if (phase === 'werewolf') {
+                soundKey = 'night_werewolf';
+                // 人狼がいない場合は10秒（音声だけ流して自動進行）
+                if (!hasRolePlayer('werewolf')) {
+                    countdownTime = 10;
+                }
+            } else if (phase === 'seer') {
+                soundKey = 'night_seer';
+                // 占い師がいない場合は10秒
+                if (!hasRolePlayer('seer')) {
+                    countdownTime = 10;
+                }
+            } else if (phase === 'thief') {
+                soundKey = 'night_thief';
+                // 怪盗がいない場合は10秒
+                if (!hasRolePlayer('thief')) {
+                    countdownTime = 10;
+                }
+            } else if (phase === 'done') {
+                soundKey = 'night_done';
+            }
+
+            // 既存のタイマーをクリア
+            if (this.nightCountdownTimer) {
+                clearInterval(this.nightCountdownTimer);
+                this.nightCountdownTimer = null;
+            }
+
+            // カウントダウンを開始する関数
+            const startCountdown = () => {
+                if (phase === 'done') {
+                    // doneフェーズ: カウントダウンなしで即座に議論フェーズへ遷移
+                    this.nightCountdown = 0;
+                    this.werewolfStartDiscussion();
+                } else {
+                    this.nightCountdown = countdownTime;
+                    this.nightCountdownTimer = setInterval(() => {
+                        this.nightCountdown--;
+                        if (this.nightCountdown <= 0) {
+                            clearInterval(this.nightCountdownTimer);
+                            this.nightCountdownTimer = null;
+                            // 自動で次のフェーズへ進む
+                            this.werewolfAdvanceNight();
+                        }
+                    }, 1000);
+                }
+            };
+
+            // WAV音声を再生し、再生完了後にカウントダウン開始
+            if (soundKey) {
+                this.nightCountdown = '-';  // 再生中は「-」を表示
+                this.sounds.play(soundKey, () => {
+                    startCountdown();
+                });
+            } else {
+                // 音声がない場合はすぐにカウントダウン開始
+                startCountdown();
+            }
+        },
+
+        // 手動で音声を再生（リプレイ用）
+        speakNightPhase() {
+            const phase = this.werewolfState?.night_phase;
+            this.autoPlayNightAudio(phase);
+        },
+
+        // Discussion Timer
+        startDiscussionTimer(endTime) {
+            if (this.discussionTimer) {
+                clearInterval(this.discussionTimer);
+            }
+
+            const updateTimer = () => {
+                const now = Date.now() / 1000;
+                const remaining = Math.max(0, endTime - now);
+                this.discussionTimeRemaining = Math.ceil(remaining);
+
+                if (remaining <= 0) {
+                    clearInterval(this.discussionTimer);
+                    this.discussionTimer = null;
+                }
+            };
+
+            updateTimer();
+            this.discussionTimer = setInterval(updateTimer, 1000);
+        },
+
+        formatTime(seconds) {
+            const min = Math.floor(seconds / 60);
+            const sec = seconds % 60;
+            return `${min}:${sec.toString().padStart(2, '0')}`;
         },
 
         // Helper to get current reader name

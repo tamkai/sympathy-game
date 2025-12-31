@@ -34,6 +34,186 @@ class GameMode(str, Enum):
     WORD_WOLF = "WORD_WOLF"
     SEKAI_NO_MIKATA = "SEKAI_NO_MIKATA"
     ITO = "ITO"
+    ONE_NIGHT_WEREWOLF = "ONE_NIGHT_WEREWOLF"
+
+
+class WerewolfRole(str, Enum):
+    """ワンナイト人狼の役職"""
+    VILLAGER = "villager"      # 村人
+    WEREWOLF = "werewolf"      # 人狼
+    SEER = "seer"              # 占い師
+    THIEF = "thief"            # 怪盗
+    MADMAN = "madman"          # 狂人（人狼陣営だが占い結果は人間）
+
+
+class WerewolfNightPhase(str, Enum):
+    """夜フェーズの進行状態"""
+    WAITING = "waiting"        # 開始待ち
+    CLOSING_EYES = "closing_eyes"  # 全員目を閉じる
+    WEREWOLF = "werewolf"      # 人狼の確認
+    SEER = "seer"              # 占い師の行動
+    THIEF = "thief"            # 怪盗の行動
+    DONE = "done"              # 夜フェーズ完了
+
+
+class WerewolfState(BaseModel):
+    """ワンナイト人狼のゲーム状態"""
+    # 配役（初期配布時）
+    original_roles: Dict[str, WerewolfRole] = {}  # player_id -> 役職
+    graveyard: List[WerewolfRole] = []            # 墓地の2枚
+
+    # 現在の役職（怪盗の交換後）
+    current_roles: Dict[str, WerewolfRole] = {}   # player_id -> 役職
+
+    # 夜アクション結果（各プレイヤーが見た情報）
+    night_info: Dict[str, str] = {}  # player_id -> 見た情報（表示用テキスト）
+
+    # 夜フェーズ進行
+    night_phase: WerewolfNightPhase = WerewolfNightPhase.WAITING
+    night_actions_done: Dict[str, bool] = {}  # player_id -> 行動完了したか
+
+    # 占い師のアクション記録
+    seer_target: Optional[str] = None  # 占った対象（player_idまたは"graveyard"）
+    seer_graveyard_index: Optional[int] = None  # 墓地を見た場合のインデックス
+
+    # 怪盗のアクション記録
+    thief_target: Optional[str] = None  # 交換対象のplayer_id（交換しない場合はNone）
+    thief_swapped: bool = False  # 交換したか
+
+    # 投票
+    votes: Dict[str, str] = {}  # voter_id -> target_id
+
+    # 議論時間
+    discussion_end_time: float = 0.0
+
+    # 結果
+    executed_player_ids: List[str] = []  # 処刑されたプレイヤーID（複数可能）
+    executed_player_id: Optional[str] = None  # 後方互換用
+    village_won: bool = False
+    is_peace_village: bool = False  # 平和村（人狼不在）
+    peace_vote_succeeded: bool = False  # 平和村投票が成功したか
+    no_execution: bool = False  # 処刑なし（全員バラバラ）
+    winning_reason: str = ""
+
+    def get_werewolf_ids(self) -> List[str]:
+        """現在の人狼プレイヤーIDを取得"""
+        return [pid for pid, role in self.current_roles.items() if role == WerewolfRole.WEREWOLF]
+
+    def get_madman_ids(self) -> List[str]:
+        """現在の狂人プレイヤーIDを取得"""
+        return [pid for pid, role in self.current_roles.items() if role == WerewolfRole.MADMAN]
+
+    def get_werewolf_team_ids(self) -> List[str]:
+        """人狼陣営（人狼+狂人）のプレイヤーIDを取得"""
+        return [pid for pid, role in self.current_roles.items()
+                if role in (WerewolfRole.WEREWOLF, WerewolfRole.MADMAN)]
+
+    def calculate_vote_results(self, players_dict: Dict[str, Any]):
+        """投票結果を計算"""
+        # 投票集計（平和村投票を含む）
+        vote_counts: Dict[str, int] = {}
+        peace_votes = 0
+        for target in self.votes.values():
+            if target == "PEACE_VILLAGE":
+                peace_votes += 1
+            else:
+                vote_counts[target] = vote_counts.get(target, 0) + 1
+
+        # 現在の人狼を取得
+        werewolf_ids = self.get_werewolf_ids()
+        madman_ids = self.get_madman_ids()
+
+        # 実際に人狼がいない場合
+        if not werewolf_ids:
+            self.is_peace_village = True
+
+        # 投票がない場合
+        total_votes = len(self.votes)
+        if total_votes == 0:
+            if not werewolf_ids:
+                self.village_won = True
+                self.winning_reason = "平和村！人狼はいませんでした。全員の勝利！"
+            else:
+                self.village_won = False
+                werewolf_names = [players_dict[wid].name for wid in werewolf_ids if wid in players_dict]
+                self.winning_reason = f"人狼陣営の勝利！投票がありませんでした。人狼は{', '.join(werewolf_names)}でした！"
+            return
+
+        # 全員バラバラの場合（全員が1票ずつ、かつ平和村票も含めてバラバラ）
+        all_counts = list(vote_counts.values()) + ([peace_votes] if peace_votes > 0 else [])
+        if all_counts and max(all_counts) == 1:
+            self.no_execution = True
+            if not werewolf_ids:
+                # 平和村で全員バラバラ → 全員勝利
+                self.village_won = True
+                self.winning_reason = "処刑なし！平和村でした。全員の勝利！"
+            else:
+                # 人狼がいるのに処刑なし → 人狼の勝利
+                self.village_won = False
+                werewolf_names = [players_dict[wid].name for wid in werewolf_ids if wid in players_dict]
+                self.winning_reason = f"人狼陣営の勝利！処刑される人がいませんでした。人狼は{', '.join(werewolf_names)}でした！"
+            return
+
+        # 最多票を取得（平和村票も含める）
+        max_player_votes = max(vote_counts.values()) if vote_counts else 0
+        max_votes = max(max_player_votes, peace_votes)
+
+        # 平和村が最多票の場合
+        if peace_votes == max_votes and (not vote_counts or peace_votes >= max_player_votes):
+            self.peace_vote_succeeded = True
+            if not werewolf_ids:
+                # 平和村投票が当たり！
+                self.village_won = True
+                self.winning_reason = "平和村を願う投票が正解！人狼はいませんでした。全員の勝利！"
+            else:
+                # 平和村投票だが実際には人狼がいた
+                self.village_won = False
+                werewolf_names = [players_dict[wid].name for wid in werewolf_ids if wid in players_dict]
+                self.winning_reason = f"人狼陣営の勝利！平和村を願いましたが、人狼は{', '.join(werewolf_names)}でした！"
+            return
+
+        # 最多票のプレイヤーを取得
+        most_voted_ids = [pid for pid, count in vote_counts.items() if count == max_votes]
+
+        # 同数の場合は全員処刑
+        self.executed_player_ids = most_voted_ids
+        self.executed_player_id = most_voted_ids[0]  # 後方互換用
+
+        # 処刑者の中に人狼がいるかチェック
+        executed_werewolves = [pid for pid in most_voted_ids if pid in werewolf_ids]
+
+        if executed_werewolves:
+            # 人狼が処刑された → 村人の勝利
+            self.village_won = True
+            executed_names = [players_dict[pid].name for pid in most_voted_ids if pid in players_dict]
+            if len(most_voted_ids) > 1:
+                self.winning_reason = f"村人陣営の勝利！{', '.join(executed_names)}が処刑され、人狼が含まれていました！"
+            else:
+                self.winning_reason = f"村人陣営の勝利！{executed_names[0]}は人狼でした！"
+        else:
+            # 人狼が処刑されなかった
+            self.village_won = False
+            executed_names = [players_dict[pid].name for pid in most_voted_ids if pid in players_dict]
+            werewolf_names = [players_dict[wid].name for wid in werewolf_ids if wid in players_dict]
+
+            if self.is_peace_village:
+                # 平和村なのに処刑してしまった
+                if len(most_voted_ids) > 1:
+                    self.winning_reason = f"残念！{', '.join(executed_names)}が処刑されましたが、実は平和村でした..."
+                else:
+                    self.winning_reason = f"残念！{executed_names[0]}を処刑しましたが、実は平和村でした..."
+            else:
+                # 人狼がいるのに見逃した
+                if len(most_voted_ids) > 1:
+                    base_msg = f"人狼陣営の勝利！{', '.join(executed_names)}が処刑されましたが、人狼ではありませんでした。"
+                else:
+                    base_msg = f"人狼陣営の勝利！{executed_names[0]}は人狼ではありませんでした。"
+
+                if madman_ids:
+                    madman_names = [players_dict[mid].name for mid in madman_ids if mid in players_dict]
+                    self.winning_reason = f"{base_msg}人狼は{', '.join(werewolf_names)}、狂人は{', '.join(madman_names)}でした！"
+                else:
+                    self.winning_reason = f"{base_msg}人狼は{', '.join(werewolf_names)}でした！"
 
 class WordWolfState(BaseModel):
     wolf_ids: List[str] = []
@@ -175,6 +355,9 @@ class Room(BaseModel):
     # Ito State
     ito_state: Optional[ItoState] = None
 
+    # One Night Werewolf State
+    werewolf_state: Optional[WerewolfState] = None
+
     # Common State
     players: Dict[str, Player] = Field(default_factory=dict)
     winner_id: Optional[str] = None
@@ -185,6 +368,7 @@ class Room(BaseModel):
     config_discussion_time: int = 180 # Seconds (Default 3 mins)
     config_ito_coop: bool = True  # itoの協力モード
     config_ito_close_call: bool = False  # itoのギリギリ成功演出
+    config_werewolf_madman: bool = True  # ワンナイト人狼の狂人（4人以上で有効）
     
     # Sympathy Specific State
     shuffle_triggered_in_round: bool = False

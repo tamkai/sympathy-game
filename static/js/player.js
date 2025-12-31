@@ -50,6 +50,15 @@ function playerApp() {
         showPlayCardConfirm: false,  // カード出し確認モーダル
         winnerId: null,
 
+        // One Night Werewolf State
+        werewolfState: null,
+        roleRevealed: false,     // 役職表示トグル
+        nightInfoRevealed: false, // 夜の情報表示トグル
+        seerTarget: '',          // 占い師のターゲット
+        seerLocalResult: '',     // 占い師のローカル結果（即時表示用）
+        thiefTarget: '',         // 怪盗のターゲット
+        werewolfVoteTarget: '',  // 人狼投票ターゲット
+
         init() {
             // Robust roomId extraction
             const parts = document.location.pathname.split('/');
@@ -178,6 +187,38 @@ function playerApp() {
                     }
                 }
 
+                // One Night Werewolf State Sync
+                const oldWerewolfState = this.werewolfState;
+                if (this.mode === 'ONE_NIGHT_WEREWOLF' && data.werewolf_state) {
+                    this.werewolfState = data.werewolf_state;
+
+                    // 新しいゲームになったらリセット
+                    if (this.phase === 'INSTRUCTION') {
+                        this.roleRevealed = false;
+                        this.seerTarget = '';
+                        this.seerLocalResult = '';
+                        this.thiefTarget = '';
+                        this.werewolfVoteTarget = '';
+                        this.nightInfoRevealed = false;
+                    }
+
+                    // 自分の番になったら振動
+                    if (oldWerewolfState && this.werewolfState) {
+                        const oldNightPhase = oldWerewolfState.night_phase;
+                        const newNightPhase = this.werewolfState.night_phase;
+                        if (oldNightPhase !== newNightPhase) {
+                            const myRole = this.myWerewolfRole;
+                            if (
+                                (newNightPhase === 'werewolf' && myRole === 'werewolf') ||
+                                (newNightPhase === 'seer' && myRole === 'seer') ||
+                                (newNightPhase === 'thief' && myRole === 'thief')
+                            ) {
+                                this.vibrate([200, 100, 200]); // Your turn!
+                            }
+                        }
+                    }
+                }
+
                 // WinnerId
                 this.winnerId = data.winner_id;
 
@@ -268,6 +309,99 @@ function playerApp() {
         get myNumber() {
             if (!this.itoState || !this.itoState.player_numbers) return '?';
             return this.itoState.player_numbers[this.clientId] || '?';
+        },
+
+        // ===== One Night Werewolf =====
+
+        // 自分の役職を取得（元の役職）
+        get myWerewolfRole() {
+            if (!this.werewolfState || !this.werewolfState.original_roles) return null;
+            return this.werewolfState.original_roles[this.clientId] || null;
+        },
+
+        // 自分の番かどうか
+        get isMyNightTurn() {
+            if (!this.werewolfState) return false;
+            const phase = this.werewolfState.night_phase;
+            const role = this.myWerewolfRole;
+            return (
+                (phase === 'werewolf' && role === 'werewolf') ||
+                (phase === 'seer' && role === 'seer') ||
+                (phase === 'thief' && role === 'thief')
+            );
+        },
+
+        // 人狼: 仲間の人狼情報
+        get werewolfPartnerInfo() {
+            if (!this.werewolfState || this.myWerewolfRole !== 'werewolf') return '';
+            const wolfIds = Object.entries(this.werewolfState.original_roles)
+                .filter(([pid, role]) => role === 'werewolf' && pid !== this.clientId)
+                .map(([pid]) => pid);
+            if (wolfIds.length === 0) return 'あなたは一人狼です（仲間なし）';
+            const partnerNames = wolfIds.map(pid => this.players[pid]?.name || '???');
+            return '仲間の人狼: ' + partnerNames.join(', ');
+        },
+
+        // 人狼: 確認完了
+        werewolfConfirm() {
+            this.sendMessage('WEREWOLF_NIGHT_ACTION', {
+                action: 'werewolf_confirm',
+                target: ''
+            });
+        },
+
+        // 占い師: 対象をタップして即時結果を表示（ローカル）
+        seerPeek(target) {
+            this.seerTarget = target;
+
+            // ローカルで役職を表示
+            // 注: 狂人は占い師には「村人」と表示される
+            const roleNames = {
+                'villager': '村人',
+                'werewolf': '人狼',
+                'seer': '占い師',
+                'thief': '怪盗',
+                'madman': '村人'  // 狂人は人間判定
+            };
+
+            if (target.startsWith('graveyard_')) {
+                // 墓地を見る
+                const index = parseInt(target.split('_')[1]);
+                const graveyard = this.werewolfState?.graveyard || [];
+                const role = graveyard[index] || '???';
+                this.seerLocalResult = `墓地${index + 1}枚目: ${roleNames[role] || role}`;
+            } else {
+                // プレイヤーを見る
+                const roles = this.werewolfState?.original_roles || {};
+                const role = roles[target];
+                const playerName = this.players[target]?.name || '???';
+                this.seerLocalResult = `${playerName}: ${roleNames[role] || role}`;
+            }
+        },
+
+        // 占い師: 行動終了（サーバーに通知）
+        seerConfirm() {
+            this.sendMessage('WEREWOLF_NIGHT_ACTION', {
+                action: 'seer_look',
+                target: this.seerTarget || 'none'
+            });
+        },
+
+        // 怪盗: 交換
+        thiefSwap(target) {
+            this.sendMessage('WEREWOLF_NIGHT_ACTION', {
+                action: 'thief_swap',
+                target: target
+            });
+        },
+
+        // 投票
+        submitWerewolfVote() {
+            if (!this.werewolfVoteTarget) return;
+            this.sendMessage('WEREWOLF_VOTE', {
+                target_player_id: this.werewolfVoteTarget
+            });
+            this.hasAnswered = true;
         }
     }
 }

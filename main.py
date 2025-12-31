@@ -121,10 +121,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, client_id: str)
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_id)
-        # await manager.broadcast(f"Client #{client_id} left the chat")
-
-    except WebSocketDisconnect:
-        manager.disconnect(room_id, client_id)
         # Optional: Remove player from game if disconnected? usually keep for reconnection.
         # But if desired: room.players.pop(client_id, None)
         await manager.broadcast_state(room_id)

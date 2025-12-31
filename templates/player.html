@@ -116,9 +116,9 @@
 
         <!-- Phase: WORD_WOLF_RESULT needs to be handled? reusing RESULT Phase for now -->
 
-        <!-- Existing Sympathy Waiting -->
+        <!-- Sympathy LOBBY / Waiting -->
         <template
-            x-if="hasJoined && (phase === 'LOBBY' || (phase === 'ANSWERING' && hasAnswered && mode === 'SYMPATHY') || (phase === 'JUDGING' && mode === 'SYMPATHY') || (phase === 'INSTRUCTION' && mode === 'SYMPATHY'))">
+            x-if="hasJoined && mode === 'SYMPATHY' && (phase === 'LOBBY' || (phase === 'ANSWERING' && hasAnswered) || phase === 'JUDGING' || phase === 'INSTRUCTION')">
             <div class="text-center animate-pulse text-violet">
                 <div class="text-6xl mb-4">💣</div>
                 <h2 class="text-xl font-bold mb-2">Wait a moment!</h2>
@@ -128,6 +128,24 @@
                 <div x-show="phase === 'JUDGING'">
                     <p class="text-sm opacity-80">集計中... ドキドキ...</p>
                 </div>
+            </div>
+        </template>
+
+        <!-- Generic LOBBY for ITO and SEKAI_NO_MIKATA -->
+        <template x-if="hasJoined && phase === 'LOBBY' && (mode === 'ITO' || mode === 'SEKAI_NO_MIKATA')">
+            <div class="text-center animate-pulse text-violet">
+                <div class="text-6xl mb-4">🎮</div>
+                <h2 class="text-xl font-bold mb-2">準備完了！</h2>
+                <p class="text-sm opacity-80">ホストがゲームを開始するのを待ってね</p>
+            </div>
+        </template>
+
+        <!-- Word Wolf LOBBY -->
+        <template x-if="hasJoined && phase === 'LOBBY' && mode === 'WORD_WOLF'">
+            <div class="text-center animate-pulse text-violet">
+                <div class="text-6xl mb-4">🐺</div>
+                <h2 class="text-xl font-bold mb-2">ワードウルフ</h2>
+                <p class="text-sm opacity-80">ホストがゲームを開始するのを待ってね</p>
             </div>
         </template>
 
@@ -488,6 +506,345 @@
                         </div>
                     </div>
                 </template>
+
+                <p class="text-sm text-violet opacity-70">ホストの画面を見てね！</p>
+            </div>
+        </template>
+
+        <!-- ======================= -->
+        <!-- ONE NIGHT WEREWOLF PHASES -->
+        <!-- ======================= -->
+
+        <!-- Phase: LOBBY (Werewolf - 待機中) -->
+        <template x-if="hasJoined && phase === 'LOBBY' && mode === 'ONE_NIGHT_WEREWOLF'">
+            <div class="text-center animate-pulse text-violet">
+                <div class="text-6xl mb-4">🌙</div>
+                <h2 class="text-xl font-bold mb-2">ワンナイト人狼</h2>
+                <p class="text-sm opacity-80">ホストがゲームを開始するのを待ってね</p>
+            </div>
+        </template>
+
+        <!-- Phase: INSTRUCTION (Werewolf - 役職確認) -->
+        <template x-if="hasJoined && phase === 'INSTRUCTION' && mode === 'ONE_NIGHT_WEREWOLF' && werewolfState">
+            <div class="glass p-6 rounded-2xl w-full text-center flex flex-col gap-4 animate-fade-in bg-gradient-to-b from-slate-800/80 to-slate-900/80">
+                <div class="text-5xl">🌙</div>
+                <h2 class="text-2xl font-bold text-white">ワンナイト人狼</h2>
+
+                <!-- 役職カード -->
+                <div class="bg-white/10 p-6 rounded-2xl" @click="roleRevealed = !roleRevealed">
+                    <div class="text-sm text-white/70 mb-2 font-bold">あなたの役職</div>
+                    <div class="transition-all duration-300"
+                         :class="roleRevealed ? '' : 'blur-lg'">
+                        <div class="text-6xl mb-2"
+                             x-text="myWerewolfRole === 'werewolf' ? '🐺' : (myWerewolfRole === 'seer' ? '🔮' : (myWerewolfRole === 'thief' ? '🦹' : (myWerewolfRole === 'madman' ? '🃏' : '🧑‍🌾')))"></div>
+                        <div class="text-3xl font-bold text-white"
+                             x-text="myWerewolfRole === 'werewolf' ? '人狼' : (myWerewolfRole === 'seer' ? '占い師' : (myWerewolfRole === 'thief' ? '怪盗' : (myWerewolfRole === 'madman' ? '狂人' : '村人')))"></div>
+                    </div>
+                    <p class="text-xs mt-2 opacity-50 text-white" x-text="roleRevealed ? 'タップして隠す' : 'タップして確認（他の人に見せないで！）'"></p>
+                </div>
+
+                <!-- 役職説明 -->
+                <div class="bg-white/10 p-4 rounded-xl text-left text-white/80 text-sm">
+                    <template x-if="myWerewolfRole === 'villager'">
+                        <p><span class="font-bold text-white">村人:</span> 能力はありません。議論で人狼を見つけ出しましょう！</p>
+                    </template>
+                    <template x-if="myWerewolfRole === 'werewolf'">
+                        <p><span class="font-bold text-white">人狼:</span> 夜に仲間の人狼を確認できます。バレないように議論を乗り切りましょう！</p>
+                    </template>
+                    <template x-if="myWerewolfRole === 'seer'">
+                        <p><span class="font-bold text-white">占い師:</span> 夜に他のプレイヤー1人か、墓地のカード1枚を見れます。</p>
+                    </template>
+                    <template x-if="myWerewolfRole === 'thief'">
+                        <p><span class="font-bold text-white">怪盗:</span> 夜に他のプレイヤーと役職を交換できます（しなくてもOK）。</p>
+                    </template>
+                    <template x-if="myWerewolfRole === 'madman'">
+                        <p><span class="font-bold text-white">狂人:</span> 人狼陣営ですが、人狼が誰かはわかりません。占われても「人間」と出ます。人狼を勝たせましょう！</p>
+                    </template>
+                </div>
+
+                <p class="text-sm text-white/60">夜フェーズが始まるまでお待ちください</p>
+            </div>
+        </template>
+
+        <!-- Phase: ANSWERING (Werewolf - 夜フェーズ) -->
+        <template x-if="hasJoined && phase === 'ANSWERING' && mode === 'ONE_NIGHT_WEREWOLF' && werewolfState">
+            <div class="glass p-6 rounded-2xl w-full flex flex-col gap-4 animate-fade-in bg-gradient-to-b from-slate-900/95 to-black/95">
+                <div class="text-center">
+                    <div class="text-4xl">🌙</div>
+                    <h2 class="text-xl font-bold text-white">夜のフェーズ</h2>
+                </div>
+
+                <!-- 目を閉じるフェーズ -->
+                <template x-if="werewolfState.night_phase === 'closing_eyes'">
+                    <div class="bg-white/10 p-8 rounded-2xl text-center">
+                        <div class="text-8xl mb-4 animate-pulse">😴</div>
+                        <div class="text-2xl text-white font-bold">目を閉じてください</div>
+                        <div class="text-white/60 mt-4">夜の行動が始まります...</div>
+                    </div>
+                </template>
+
+                <!-- 自分の番でない場合（closing_eyes以外） -->
+                <template x-if="werewolfState.night_phase !== 'closing_eyes' && !isMyNightTurn">
+                    <div class="bg-white/10 p-8 rounded-2xl text-center">
+                        <div class="text-6xl mb-4">😴</div>
+                        <div class="text-xl text-white font-bold">目を閉じていてください</div>
+                        <div class="text-white/60 mt-2">あなたの番になったら端末が震えます</div>
+                    </div>
+                </template>
+
+                <!-- 人狼の番 -->
+                <template x-if="isMyNightTurn && werewolfState.night_phase === 'werewolf' && myWerewolfRole === 'werewolf'">
+                    <div class="bg-red-900/50 p-6 rounded-2xl text-center">
+                        <div class="text-5xl mb-2">🐺</div>
+                        <div class="text-xl text-white font-bold mb-4">あなたは人狼です</div>
+
+                        <!-- 夜の行動済みかどうか -->
+                        <template x-if="!werewolfState.night_actions_done[clientId]">
+                            <div class="flex flex-col gap-4">
+                                <p class="text-white/80" x-text="werewolfPartnerInfo || '仲間を確認してください'"></p>
+                                <div class="bg-amber-500/30 p-3 rounded-xl text-amber-200 text-sm">
+                                    確認したら目を閉じて「行動終了」をタップ
+                                </div>
+                                <button @click="werewolfConfirm"
+                                    class="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition text-lg">
+                                    👁️ 行動終了（目を閉じた）
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="werewolfState.night_actions_done[clientId]">
+                            <div class="text-emerald-400 font-bold">
+                                ✓ 行動終了<br>
+                                <span class="text-white/60 text-sm">目を閉じたまま待機してください</span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- 占い師の番 -->
+                <template x-if="isMyNightTurn && werewolfState.night_phase === 'seer' && myWerewolfRole === 'seer'">
+                    <div class="bg-blue-900/50 p-6 rounded-2xl">
+                        <div class="text-center mb-4">
+                            <div class="text-5xl mb-2">🔮</div>
+                            <div class="text-xl text-white font-bold">占い師の時間</div>
+                        </div>
+
+                        <template x-if="!werewolfState.night_actions_done[clientId]">
+                            <div class="flex flex-col gap-3">
+                                <p class="text-white/80 text-center text-sm">タップで占う（墓地も可）</p>
+
+                                <!-- プレイヤー選択（タップで即結果表示） -->
+                                <div class="grid grid-cols-2 gap-2">
+                                    <template x-for="player in Object.values(players)" :key="player.player_id">
+                                        <button x-show="player.player_id !== clientId"
+                                            @click="seerPeek(player.player_id)"
+                                            :disabled="seerLocalResult && seerTarget !== player.player_id"
+                                            :class="seerTarget === player.player_id ? 'bg-blue-500 text-white ring-2 ring-blue-300' : (seerLocalResult ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-white/20 text-white')"
+                                            class="p-3 rounded-xl font-bold text-sm transition-all truncate">
+                                            <span x-text="player.name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <!-- 墓地選択 -->
+                                <div class="flex gap-2">
+                                    <button @click="seerPeek('graveyard_0')"
+                                        :disabled="seerLocalResult && seerTarget !== 'graveyard_0'"
+                                        :class="seerTarget === 'graveyard_0' ? 'bg-blue-500 text-white ring-2 ring-blue-300' : (seerLocalResult ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-white/20 text-white')"
+                                        class="flex-1 p-3 rounded-xl font-bold text-sm transition-all">
+                                        墓地 1枚目
+                                    </button>
+                                    <button @click="seerPeek('graveyard_1')"
+                                        :disabled="seerLocalResult && seerTarget !== 'graveyard_1'"
+                                        :class="seerTarget === 'graveyard_1' ? 'bg-blue-500 text-white ring-2 ring-blue-300' : (seerLocalResult ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-white/20 text-white')"
+                                        class="flex-1 p-3 rounded-xl font-bold text-sm transition-all">
+                                        墓地 2枚目
+                                    </button>
+                                </div>
+
+                                <!-- 占い結果の即時表示 -->
+                                <template x-if="seerLocalResult">
+                                    <div class="bg-blue-600/50 p-4 rounded-xl text-center">
+                                        <div class="text-white/70 text-xs mb-1">占い結果</div>
+                                        <div class="text-white font-bold text-lg" x-text="seerLocalResult"></div>
+                                    </div>
+                                </template>
+
+                                <div class="bg-amber-500/30 p-3 rounded-xl text-amber-200 text-sm text-center">
+                                    確認したら「行動終了」を押して目を閉じてください
+                                </div>
+
+                                <button @click="seerConfirm"
+                                    class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition text-lg">
+                                    👁️ 行動終了
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="werewolfState.night_actions_done[clientId]">
+                            <div class="text-center">
+                                <div class="text-emerald-400 font-bold mb-2">✓ 行動終了</div>
+                                <div class="bg-white/20 p-3 rounded-xl text-white" x-text="seerLocalResult || werewolfState.night_info[clientId] || ''"></div>
+                                <div class="text-white/60 text-sm mt-2">目を閉じたまま待機してください</div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- 怪盗の番 -->
+                <template x-if="isMyNightTurn && werewolfState.night_phase === 'thief' && myWerewolfRole === 'thief'">
+                    <div class="bg-purple-900/50 p-6 rounded-2xl">
+                        <div class="text-center mb-4">
+                            <div class="text-5xl mb-2">🦹</div>
+                            <div class="text-xl text-white font-bold">怪盗の時間</div>
+                        </div>
+
+                        <template x-if="!werewolfState.night_actions_done[clientId]">
+                            <div class="flex flex-col gap-3">
+                                <p class="text-white/80 text-center text-sm">誰かと役職を交換しますか？</p>
+
+                                <!-- プレイヤー選択 -->
+                                <div class="grid grid-cols-2 gap-2">
+                                    <template x-for="player in Object.values(players)" :key="player.player_id">
+                                        <button x-show="player.player_id !== clientId"
+                                            @click="thiefTarget = player.player_id"
+                                            :class="thiefTarget === player.player_id ? 'bg-purple-500 text-white ring-2 ring-purple-300' : 'bg-white/20 text-white'"
+                                            class="p-3 rounded-xl font-bold text-sm transition-all truncate">
+                                            <span x-text="player.name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <div class="bg-amber-500/30 p-3 rounded-xl text-amber-200 text-sm text-center">
+                                    終わったら目を閉じて「行動終了」をタップ
+                                </div>
+
+                                <div class="flex gap-2">
+                                    <button @click="thiefSwap('skip')"
+                                        class="flex-1 py-4 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-bold transition text-lg">
+                                        👁️ 交換せず終了
+                                    </button>
+                                    <button @click="thiefSwap(thiefTarget)" :disabled="!thiefTarget"
+                                        class="flex-1 py-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-bold transition text-lg">
+                                        👁️ 交換して終了
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="werewolfState.night_actions_done[clientId]">
+                            <div class="text-center">
+                                <div class="text-emerald-400 font-bold mb-2">✓ 行動終了</div>
+                                <div class="bg-white/20 p-3 rounded-xl text-white" x-text="werewolfState.night_info[clientId] || ''"></div>
+                                <div class="text-white/60 text-sm mt-2">目を閉じたまま待機してください</div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- 夜の情報表示（自分が得た情報） -->
+                <template x-if="werewolfState.night_info[clientId] && werewolfState.night_actions_done[clientId]">
+                    <div class="bg-white/10 p-3 rounded-xl">
+                        <div class="text-xs text-white/60">夜に得た情報</div>
+                        <div class="text-white font-bold" x-text="werewolfState.night_info[clientId]"></div>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Phase: JUDGING (Werewolf - 議論・投票) -->
+        <template x-if="hasJoined && phase === 'JUDGING' && mode === 'ONE_NIGHT_WEREWOLF' && werewolfState">
+            <div class="w-full flex flex-col gap-4 animate-fade-in">
+                <div class="text-center">
+                    <div class="text-4xl">☀️</div>
+                    <h2 class="text-xl font-bold text-violet">議論タイム</h2>
+                    <p class="text-sm text-violet/70">人狼だと思う人に投票してください</p>
+                </div>
+
+                <!-- 夜に得た情報（自分だけ見える） -->
+                <template x-if="werewolfState.night_info[clientId]">
+                    <div class="glass p-3 rounded-xl" @click="nightInfoRevealed = !nightInfoRevealed">
+                        <div class="text-xs text-violet/60">夜に得た情報（タップで表示切替）</div>
+                        <div class="font-bold transition-all"
+                             :class="nightInfoRevealed ? 'text-violet' : 'blur-sm text-gray-400'"
+                             x-text="werewolfState.night_info[clientId]"></div>
+                    </div>
+                </template>
+
+                <!-- 投票 -->
+                <template x-if="!hasAnswered">
+                    <div class="flex flex-col gap-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <template x-for="player in Object.values(players)" :key="player.player_id">
+                                <button x-show="player.player_id !== clientId"
+                                    @click="werewolfVoteTarget = player.player_id"
+                                    :class="werewolfVoteTarget === player.player_id ? 'bg-red-500 text-white ring-2 ring-red-300 scale-105' : 'glass text-violet hover:bg-white/40'"
+                                    class="p-4 rounded-xl font-bold transition-all flex flex-col items-center gap-1">
+                                    <span class="text-2xl" x-text="player.name[0]"></span>
+                                    <span class="text-sm truncate w-full text-center" x-text="player.name"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- 平和村を願う -->
+                        <button @click="werewolfVoteTarget = 'PEACE_VILLAGE'"
+                            :class="werewolfVoteTarget === 'PEACE_VILLAGE' ? 'bg-emerald-500 text-white ring-2 ring-emerald-300 scale-105' : 'glass text-violet hover:bg-white/40'"
+                            class="w-full p-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2">
+                            <span class="text-2xl">🌈</span>
+                            <span>平和村を願う</span>
+                        </button>
+
+                        <button @click="submitWerewolfVote" :disabled="!werewolfVoteTarget"
+                            class="w-full py-4 text-xl font-bold bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-xl shadow-lg transition">
+                            投票する
+                        </button>
+                    </div>
+                </template>
+
+                <template x-if="hasAnswered">
+                    <div class="glass p-8 rounded-2xl text-center">
+                        <div class="text-6xl mb-4">🗳️</div>
+                        <h3 class="text-xl font-bold text-violet">投票完了！</h3>
+                        <p class="text-sm text-violet/70 mt-2">結果発表を待ってね...</p>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Phase: RESULT (Werewolf) -->
+        <template x-if="hasJoined && phase === 'RESULT' && mode === 'ONE_NIGHT_WEREWOLF' && werewolfState">
+            <div class="glass p-6 rounded-2xl w-full text-center flex flex-col gap-4 animate-fade-in">
+                <!-- 勝敗 -->
+                <template x-if="werewolfState.village_won">
+                    <div class="bg-gradient-to-r from-blue-300 to-cyan-300 p-6 rounded-2xl">
+                        <div class="text-4xl mb-2">🎉🧑‍🌾🎉</div>
+                        <h2 class="text-2xl font-bold text-blue-800">村人の勝利！</h2>
+                    </div>
+                </template>
+                <template x-if="!werewolfState.village_won && !werewolfState.is_peace_village">
+                    <div class="bg-gradient-to-r from-red-300 to-orange-300 p-6 rounded-2xl">
+                        <div class="text-4xl mb-2">🐺🌙🐺</div>
+                        <h2 class="text-2xl font-bold text-red-800">人狼の勝利！</h2>
+                    </div>
+                </template>
+                <template x-if="werewolfState.is_peace_village && werewolfState.village_won">
+                    <div class="bg-gradient-to-r from-green-300 to-emerald-300 p-6 rounded-2xl">
+                        <div class="text-4xl mb-2">🌈✨🌈</div>
+                        <h2 class="text-2xl font-bold text-green-800">平和村！</h2>
+                    </div>
+                </template>
+                <template x-if="werewolfState.is_peace_village && !werewolfState.village_won">
+                    <div class="bg-gradient-to-r from-amber-300 to-yellow-300 p-6 rounded-2xl">
+                        <div class="text-4xl mb-2">😢🌈😢</div>
+                        <h2 class="text-2xl font-bold text-amber-800">残念...</h2>
+                    </div>
+                </template>
+
+                <!-- あなたの役職 -->
+                <div class="bg-white/40 p-4 rounded-xl">
+                    <div class="text-sm text-violet/70">あなたの最終役職</div>
+                    <div class="text-3xl mb-1"
+                         x-text="werewolfState.current_roles[clientId] === 'werewolf' ? '🐺' : (werewolfState.current_roles[clientId] === 'seer' ? '🔮' : (werewolfState.current_roles[clientId] === 'thief' ? '🦹' : (werewolfState.current_roles[clientId] === 'madman' ? '🃏' : '🧑‍🌾')))"></div>
+                    <div class="text-xl font-bold text-violet"
+                         x-text="werewolfState.current_roles[clientId] === 'werewolf' ? '人狼' : (werewolfState.current_roles[clientId] === 'seer' ? '占い師' : (werewolfState.current_roles[clientId] === 'thief' ? '怪盗' : (werewolfState.current_roles[clientId] === 'madman' ? '狂人' : '村人')))"></div>
+                </div>
 
                 <p class="text-sm text-violet opacity-70">ホストの画面を見てね！</p>
             </div>
