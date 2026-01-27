@@ -111,7 +111,7 @@ class SympathyGame:
 
         if not available_questions:
             room.used_questions = set()
-            available_questions = source_list
+            available_questions = self.engine.questions
 
         new_q = random.choice(available_questions)
         room.current_question = new_q
