@@ -483,6 +483,174 @@ class Room(BaseModel):
                 self.winner_id = player.player_id
                 break
 
+    def get_view(self, viewer_id: str) -> dict:
+        """
+        Create a sanitized view of the room state for a specific viewer.
+        Hides secret information like Werewolf roles, other players' cards, etc.
+        """
+        # Base full dump (deep copy via pydantic serialization to avoid mutation)
+        data = self.model_dump()
+        is_host = viewer_id.startswith("HOST")
+
+        # --- Sanitize Word Wolf State ---
+        if self.mode == GameMode.WORD_WOLF and self.word_wolf_state:
+            ww_state = self.word_wolf_state
+            
+            # Hide votes during discussion
+            if self.phase != Phase.RESULT:
+                data['word_wolf_state']['votes'] = {}
+            
+            # Hide Topics and Wolf IDs
+            # Logic:
+            # - Host: Can see everything? Let's say yes for now to debug/monitor.
+            # - Player: Can only see their own topic. CANNOT see wolf_ids.
+            
+            if not is_host:
+                # Sanitize Topics
+                client_topic = ww_state.topics.get(viewer_id)
+                data['word_wolf_state']['topics'] = {viewer_id: client_topic} if client_topic else {}
+                
+                # Sanitize Wolf IDs (Secrets!)
+                # Players only know if THEY are the wolf. They don't get the full wolf_ids list.
+                # Actually, client logic uses `wolf_ids.includes(myClientId)` to determine role.
+                # So we can send `wolf_ids` efficiently BUT it MUST NOT contain others.
+                
+                if viewer_id in ww_state.wolf_ids:
+                    # I am a wolf. I know I am a wolf.
+                    data['word_wolf_state']['wolf_ids'] = [viewer_id]
+                else:
+                    # I am a villager. I see empty wolf_ids list from server.
+                    data['word_wolf_state']['wolf_ids'] = []
+
+        # --- Sanitize Sekai No Mikata State ---
+        if self.mode == GameMode.SEKAI_NO_MIKATA and self.sekai_state:
+            # Hide other players' word choices
+            if not is_host:
+                user_choices = self.sekai_state.word_choices.get(viewer_id, [])
+                data['sekai_state']['word_choices'] = {viewer_id: user_choices}
+
+            # Hide who served which answer during Judging
+            # In Phase.ANSWERING: Hide answers completely? No, we show progress.
+            # In Phase.JUDGING: Show answers but hide `player_id` (so we don't know who wrote what).
+            # But wait, Sekai logic: "Nominate your favorite". You shouldn't know who wrote it.
+            # `all_answers_for_display` is heavily used.
+            
+            if self.phase == Phase.JUDGING:
+                # Hide player names/ids in the display list
+                sanitized_list = []
+                for ans in data['sekai_state']['all_answers_for_display']:
+                    # Clone dict to avoid mutating original
+                    safe_ans = ans.copy()
+                    safe_ans['player_id'] = "HIDDEN"
+                    safe_ans['player_name'] = "???"
+                    # Keep is_dummy? Maybe hide that too if we want perfect bluffing.
+                    # But usually "Mountain Deck" is a known entity or not?
+                    # Let's keep is_dummy strictly hidden if we want players to guess.
+                    # Current rules: Just pick the best answer.
+                    sanitized_list.append(safe_ans)
+                data['sekai_state']['all_answers_for_display'] = sanitized_list
+
+        # --- Sanitize Ito State ---
+        if self.mode == GameMode.ITO and self.ito_state:
+            # Hide other players' numbers!
+            if not is_host:
+                my_number = self.ito_state.player_numbers.get(viewer_id)
+                data['ito_state']['player_numbers'] = {viewer_id: my_number} if my_number else {}
+
+        # --- Sanitize One Night Werewolf State ---
+        if self.mode == GameMode.ONE_NIGHT_WEREWOLF and self.werewolf_state:
+            wf_state = self.werewolf_state
+            
+            # Hide Original Roles (The most critical part)
+            # Host can see all? Maybe.
+            if not is_host:
+                 # Only show MY role
+                my_role = wf_state.original_roles.get(viewer_id)
+                data['werewolf_state']['original_roles'] = {viewer_id: my_role} if my_role else {}
+                
+                # Hide Graveyard completely
+                data['werewolf_state']['graveyard'] = []
+                
+                # Hide Current Roles (Thief results etc)
+                data['werewolf_state']['current_roles'] = {}
+
+                # Hide Night Info - but show MY OWN night info
+                my_night_info = wf_state.night_info.get(viewer_id)
+                data['werewolf_state']['night_info'] = {viewer_id: my_night_info} if my_night_info else {}
+
+                # Hide Individual Votes during voting phase (show only count or nothing?)
+                # Usually voting is simultaneous.
+                if self.phase != Phase.RESULT:
+                     data['werewolf_state']['votes'] = {}
+
+                # Special Case: Werewolves can see other Werewolves
+                # But we handled that in client logic? `werewolfPartnerInfo` needs data.
+                if my_role == WerewolfRole.WEREWOLF:
+                    # Provide partner info specifically
+                    # We can inject a synthetic "partners" field or just expose those IDs in `original_roles`
+                    # Exposing in `original_roles` is cleaner so client logic works.
+                    partners = {pid: role for pid, role in wf_state.original_roles.items() if role == WerewolfRole.WEREWOLF}
+                    data['werewolf_state']['original_roles'].update(partners)
+
+        # --- Sanitize Sympathy Answers (Bluffing Phase) ---
+        if self.mode == GameMode.SYMPATHY:
+            # During ANSWERING: Hide answers from others (but we need to know WHO answered)
+            # `has_answered` in Player model covers the status.
+            # `answers` dict contains the text.
+            
+            if self.phase == Phase.ANSWERING:
+                # Clear all answer texts
+                data['answers'] = {}
+
+            # During JUDGING: We need to see texts to group them.
+            # But DO WE need to see WHO wrote what?
+            # Sympathy rules: "Guess who wrote what" or just "Group same meanings"?
+            # Actually Sympathy is "Synchronize with others".
+            # If I see "Apple" and I know "Tamkai" wrote it, I might join.
+            # The game UI shows cards.
+            # Let's keep Sympathy open for now as it's cooperative-ish.
+            pass
+
+        return data
+
+    def handle_seer_peek(self, client_id: str, target: str) -> str:
+        """
+        Handle a Seer's request to peek at a card.
+        Returns the role name string.
+        """
+        print(f"[DEBUG] handle_seer_peek called: client_id={client_id}, target={target}")
+        if self.mode != GameMode.ONE_NIGHT_WEREWOLF or not self.werewolf_state:
+            print(f"[DEBUG] handle_seer_peek: wrong mode or no werewolf_state")
+            return ""
+
+        roles = self.werewolf_state.original_roles
+        print(f"[DEBUG] handle_seer_peek: original_roles={roles}")
+
+        # Verify requester is Seer
+        if roles.get(client_id) != WerewolfRole.SEER:
+            print(f"[DEBUG] handle_seer_peek: client is not seer, their role={roles.get(client_id)}")
+            return ""
+
+        # Target: "graveyard_0" or "player_id"
+        if target.startswith("graveyard_"):
+            try:
+                idx = int(target.split("_")[1])
+                card = self.werewolf_state.graveyard[idx]
+                return card.value # "villager", "werewolf" etc
+            except:
+                return ""
+        else:
+            # Target is a player
+            role = roles.get(target)
+            if role:
+                # Madness check: Madman looks like Villager to Seer?
+                # Usually Seer sees EXACT role in One Night Werewolf?
+                # Rules vary. Let's assume standard One Night: You see the role card.
+                # If using "Madman sees as Villager" rule:
+                # if role == WerewolfRole.MADMAN: return WerewolfRole.VILLAGER.value
+                return role.value
+        return ""
+
 # Global state storage (In-Memory for MVP)
 rooms: Dict[str, Room] = {}
 

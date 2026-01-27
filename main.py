@@ -41,37 +41,54 @@ class ConnectionManager:
     def __init__(self):
         # active_connections: room_id -> list of WebSockets
         self.active_connections: Dict[str, List[WebSocket]] = {}
+        # socket_map: WebSocket -> client_id
+        self.socket_map: Dict[WebSocket, str] = {}
 
     async def connect(self, room_id: str, client_id: str, websocket: WebSocket):
         await websocket.accept()
         if room_id not in self.active_connections:
             self.active_connections[room_id] = []
         self.active_connections[room_id].append(websocket)
+        self.socket_map[websocket] = client_id
 
     def disconnect(self, websocket: WebSocket, room_id: str):
         if room_id in self.active_connections:
             if websocket in self.active_connections[room_id]:
                 self.active_connections[room_id].remove(websocket)
+        if websocket in self.socket_map:
+            del self.socket_map[websocket]
 
     def get_room(self, room_id: str):
         return get_or_create_room(room_id)
 
+    async def send_personal_message(self, websocket: WebSocket, message: dict):
+        try:
+             json_msg = json.dumps(message, default=str)
+             await websocket.send_text(json_msg)
+        except Exception:
+            pass
+
     async def broadcast_state(self, room_id: str):
         if room_id in self.active_connections:
             room = get_or_create_room(room_id)
-            # Serialize room state using Pydantic's model_dump_json()
-            message = {
-                "type": "STATE_UPDATE",
-                "data": room.model_dump()
-            }
-            json_msg = json.dumps(message, default=str) # default=str to handle UUIDs/Enums if needed
             
-            # Simple broadcast loop
-            # In a real app, handle broken pipes gracefully
+            # Broadcast loop with per-player filtering
             active = self.active_connections[room_id][:]
             for connection in active:
+                client_id = self.socket_map.get(connection)
+                if not client_id:
+                    continue
+                
+                # Create sanitized view for this player
+                view_data = room.get_view(client_id)
+                
+                message = {
+                    "type": "STATE_UPDATE",
+                    "data": view_data
+                }
+                
                 try:
-                    await connection.send_text(json_msg)
+                    await connection.send_text(json.dumps(message, default=str))
                 except Exception:
                     # Clean up broken connections?
                     # self.disconnect(connection, room_id)
@@ -116,11 +133,20 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, client_id: str)
             payload = message.get("data", {})
 
             # --- Message Handling Logic ---
+            
+            # Special Handling for PEEK which is personal
+            if msg_type == "WEREWOLF_PEEK":
+                target = payload.get("target")
+                result = room.handle_seer_peek(client_id, target)
+                await manager.send_personal_message(websocket, {
+                    "type": "WEREWOLF_PEEK_RESULT",
+                    "data": {"result": result, "target": target}
+                })
+                continue
+
             if engine.process_message(room, client_id, msg_type, payload):
                 await manager.broadcast_state(room_id)
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_id)
-        # Optional: Remove player from game if disconnected? usually keep for reconnection.
-        # But if desired: room.players.pop(client_id, None)
         await manager.broadcast_state(room_id)

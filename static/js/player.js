@@ -87,6 +87,8 @@ function playerApp() {
                     const message = JSON.parse(event.data);
                     if (message.type === 'STATE_UPDATE') {
                         this.updateState(message.data);
+                    } else if (message.type === 'WEREWOLF_PEEK_RESULT') {
+                        this.handlePeekResult(message.data);
                     }
                 } catch (e) {
                     console.error("WS Message Error:", e);
@@ -97,6 +99,30 @@ function playerApp() {
                 console.log("WS Disconnected");
                 setTimeout(() => this.connectWebSocket(), 3000);
             };
+        },
+
+        handlePeekResult(data) {
+            const result = data.result;
+            const target = data.target;
+
+            const roleNames = {
+                'villager': '村人',
+                'werewolf': '人狼',
+                'seer': '占い師',
+                'thief': '怪盗',
+                'madman': '村人'
+            };
+
+            const roleName = roleNames[result] || result || "不明";
+
+            if (target.startsWith("graveyard_")) {
+                const index = parseInt(target.split('_')[1]);
+                this.seerLocalResult = `墓地${index + 1}枚目: ${roleName}`;
+            } else {
+                const player = this.players[target];
+                const playerName = player ? player.name : "???";
+                this.seerLocalResult = `${playerName}: ${roleName}`;
+            }
         },
 
         updateState(data) {
@@ -237,19 +263,25 @@ function playerApp() {
         },
 
         sendMessage(type, data = {}) {
+            console.log("[DEBUG] sendMessage called:", type, data, "readyState:", this.ws?.readyState);
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify({ type, data }));
+                console.log("[DEBUG] sendMessage: sent successfully");
             } else {
-                console.warn("WS not open. Cannot send:", type);
+                console.warn("[DEBUG] WS not open. Cannot send:", type, "readyState:", this.ws?.readyState);
             }
         },
 
         joinGame() {
-            console.log("Join Game Clicked. Name:", this.nameInput);
-            if (!this.nameInput) return;
+            console.log("[DEBUG] joinGame called. Name:", this.nameInput, "WS readyState:", this.ws?.readyState);
+            if (!this.nameInput) {
+                console.log("[DEBUG] joinGame: nameInput is empty, returning");
+                return;
+            }
             localStorage.setItem('sympathy_player_name', this.nameInput);
             this.sendMessage('JOIN', { name: this.nameInput });
             this.playerName = this.nameInput;
+            console.log("[DEBUG] joinGame: JOIN message sent");
         },
 
         submitAnswer() {
@@ -315,8 +347,13 @@ function playerApp() {
 
         // 自分の役職を取得（元の役職）
         get myWerewolfRole() {
-            if (!this.werewolfState || !this.werewolfState.original_roles) return null;
-            return this.werewolfState.original_roles[this.clientId] || null;
+            if (!this.werewolfState || !this.werewolfState.original_roles) {
+                console.log('[DEBUG] myWerewolfRole: werewolfState or original_roles is null');
+                return null;
+            }
+            const role = this.werewolfState.original_roles[this.clientId];
+            console.log('[DEBUG] myWerewolfRole:', role, 'clientId:', this.clientId, 'original_roles:', this.werewolfState.original_roles);
+            return role || null;
         },
 
         // 自分の番かどうか
@@ -324,11 +361,13 @@ function playerApp() {
             if (!this.werewolfState) return false;
             const phase = this.werewolfState.night_phase;
             const role = this.myWerewolfRole;
-            return (
+            const result = (
                 (phase === 'werewolf' && role === 'werewolf') ||
                 (phase === 'seer' && role === 'seer') ||
                 (phase === 'thief' && role === 'thief')
             );
+            console.log('[DEBUG] isMyNightTurn:', result, 'night_phase:', phase, 'role:', role);
+            return result;
         },
 
         // 人狼: 仲間の人狼情報
@@ -350,33 +389,15 @@ function playerApp() {
             });
         },
 
-        // 占い師: 対象をタップして即時結果を表示（ローカル）
+        // 占い師: 対象をタップして即時結果を表示（サーバーに問い合わせ）
         seerPeek(target) {
+            console.log('[DEBUG] seerPeek called with target:', target);
             this.seerTarget = target;
+            this.seerLocalResult = "確認中...";
 
-            // ローカルで役職を表示
-            // 注: 狂人は占い師には「村人」と表示される
-            const roleNames = {
-                'villager': '村人',
-                'werewolf': '人狼',
-                'seer': '占い師',
-                'thief': '怪盗',
-                'madman': '村人'  // 狂人は人間判定
-            };
-
-            if (target.startsWith('graveyard_')) {
-                // 墓地を見る
-                const index = parseInt(target.split('_')[1]);
-                const graveyard = this.werewolfState?.graveyard || [];
-                const role = graveyard[index] || '???';
-                this.seerLocalResult = `墓地${index + 1}枚目: ${roleNames[role] || role}`;
-            } else {
-                // プレイヤーを見る
-                const roles = this.werewolfState?.original_roles || {};
-                const role = roles[target];
-                const playerName = this.players[target]?.name || '???';
-                this.seerLocalResult = `${playerName}: ${roleNames[role] || role}`;
-            }
+            this.sendMessage('WEREWOLF_PEEK', {
+                target: target
+            });
         },
 
         // 占い師: 行動終了（サーバーに通知）
